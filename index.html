@@ -3,158 +3,166 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>CV | Tu Nombre</title>
+    <title>CV Profesional | Tu Nombre</title>
     <meta
       name="description"
-      content="Curriculum vitae online de Tu Nombre: experiencia, habilidades, proyectos y contacto."
+      content="CV profesional online: experiencia, logros, proyectos y contacto."
     />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;700;800&family=Syne:wght@500;700;800&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;700;800&family=Space+Grotesk:wght@500;700&display=swap"
       rel="stylesheet"
     />
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
-    <div class="bg-shape bg-shape-1"></div>
-    <div class="bg-shape bg-shape-2"></div>
+    <div class="mesh mesh-a"></div>
+    <div class="mesh mesh-b"></div>
 
-    <header class="hero" id="inicio">
-      <nav class="nav">
-        <a class="logo" href="#inicio">CV.</a>
-        <ul class="nav-links">
-          <li><a href="#sobre-mi">Sobre mi</a></li>
+    <header class="topbar wrap">
+      <a class="brand" href="#inicio">PortfolioCV</a>
+      <nav>
+        <ul class="menu">
+          <li><a href="#sobre-mi">Perfil</a></li>
           <li><a href="#experiencia">Experiencia</a></li>
           <li><a href="#proyectos">Proyectos</a></li>
           <li><a href="#contacto">Contacto</a></li>
         </ul>
       </nav>
-
-      <section class="hero-content reveal">
-        <p class="eyebrow">Disponible para nuevas oportunidades</p>
-        <h1>
-          Hola, soy <span>Tu Nombre</span><br />
-          y construyo experiencias digitales.
-        </h1>
-        <p class="intro">
-          Desarrollador/a web con foco en frontend, productos usables y codigo limpio.
-          Esta pagina resume mi perfil profesional, experiencia y proyectos destacados.
-        </p>
-        <div class="hero-actions">
-          <a class="btn btn-primary" href="#contacto">Contactar</a>
-          <a class="btn btn-secondary" href="#proyectos">Ver proyectos</a>
-        </div>
-      </section>
     </header>
 
-    <main>
-      <section class="section reveal" id="sobre-mi">
+    <main id="inicio" class="wrap">
+      <section class="hero reveal">
+        <div class="hero-copy">
+          <p id="hero-badge" class="badge-text"></p>
+          <h1>
+            <span id="hero-name"></span>
+            <small id="hero-role"></small>
+          </h1>
+          <p id="hero-summary" class="lead"></p>
+          <div class="hero-actions">
+            <a id="hero-contact-btn" class="btn btn-primary" href="#contacto">Contactar</a>
+            <a class="btn btn-ghost" href="#proyectos">Ver proyectos</a>
+          </div>
+          <div id="social-links" class="social-links"></div>
+        </div>
+        <aside class="hero-panel card">
+          <p class="panel-kicker">Datos clave</p>
+          <ul id="facts-list" class="facts-list"></ul>
+        </aside>
+      </section>
+
+      <section id="sobre-mi" class="section reveal">
         <div class="section-head">
-          <p class="section-kicker">Perfil</p>
+          <p class="section-tag">Perfil profesional</p>
           <h2>Sobre mi</h2>
         </div>
-        <div class="card">
-          <p>
-            Soy una persona proactiva, orientada a resultados y con pasion por aprender.
-            Me gusta colaborar en equipos donde la comunicacion clara y la calidad tecnica
-            sean prioridad. Tengo experiencia en desarrollo de interfaces modernas,
-            integracion con APIs y optimizacion de rendimiento.
-          </p>
-          <ul class="quick-facts">
-            <li><strong>Ubicacion:</strong> Ciudad, Pais</li>
-            <li><strong>Email:</strong> tunombre@email.com</li>
-            <li><strong>Telefono:</strong> +54 9 11 0000 0000</li>
-            <li><strong>Idiomas:</strong> Espanol (nativo), Ingles (intermedio)</li>
-          </ul>
-        </div>
+        <article class="card">
+          <p id="about-text" class="body-text"></p>
+        </article>
       </section>
 
-      <section class="section reveal" id="experiencia">
+      <section id="experiencia" class="section reveal">
         <div class="section-head">
-          <p class="section-kicker">Trayectoria</p>
+          <p class="section-tag">Carrera</p>
           <h2>Experiencia</h2>
         </div>
-        <div class="timeline">
-          <article class="timeline-item card">
-            <p class="timeline-date">2024 - Actualidad</p>
-            <h3>Desarrollador/a Frontend - Empresa X</h3>
-            <p>
-              Diseno e implementacion de interfaces accesibles con HTML, CSS, JavaScript y
-              frameworks modernos. Mejora de performance y mantenimiento de componentes reutilizables.
-            </p>
-          </article>
-          <article class="timeline-item card">
-            <p class="timeline-date">2022 - 2024</p>
-            <h3>Desarrollador/a Web - Empresa Y</h3>
-            <p>
-              Desarrollo de sitios corporativos y e-commerce, integrando APIs REST,
-              analytics y mejoras de SEO tecnico para aumentar conversiones.
-            </p>
-          </article>
-        </div>
+        <div id="experience-list" class="experience-grid"></div>
       </section>
 
-      <section class="section reveal" id="proyectos">
+      <section id="proyectos" class="section reveal">
         <div class="section-head">
-          <p class="section-kicker">Portfolio</p>
-          <h2>Proyectos destacados</h2>
+          <p class="section-tag">Trabajo destacado</p>
+          <h2>Proyectos</h2>
         </div>
-        <div class="projects-grid">
-          <article class="project card">
-            <h3>Proyecto 01</h3>
-            <p>
-              Plataforma web para gestion de tareas con autenticacion, dashboard y reportes.
-            </p>
-            <p class="stack">HTML, CSS, JavaScript</p>
-          </article>
-          <article class="project card">
-            <h3>Proyecto 02</h3>
-            <p>
-              Landing page de alto impacto orientada a conversion, optimizada para mobile.
-            </p>
-            <p class="stack">React, CSS Modules</p>
-          </article>
-          <article class="project card">
-            <h3>Proyecto 03</h3>
-            <p>
-              Sistema interno para visualizacion de metricas y automatizacion de reportes.
-            </p>
-            <p class="stack">TypeScript, API REST</p>
-          </article>
-        </div>
+        <div id="project-list" class="project-grid"></div>
       </section>
 
-      <section class="section reveal" id="habilidades">
+      <section id="habilidades" class="section reveal">
         <div class="section-head">
-          <p class="section-kicker">Fortalezas</p>
+          <p class="section-tag">Especialidades</p>
           <h2>Habilidades</h2>
         </div>
-        <div class="skills">
-          <span>HTML5</span>
-          <span>CSS3</span>
-          <span>JavaScript</span>
-          <span>TypeScript</span>
-          <span>React</span>
-          <span>Git</span>
-          <span>Responsive Design</span>
-          <span>UI/UX</span>
-        </div>
+        <div id="skills-list" class="skill-cloud"></div>
       </section>
     </main>
 
-    <footer class="footer section reveal" id="contacto">
-      <div class="section-head">
-        <p class="section-kicker">Conversemos</p>
-        <h2>Contacto</h2>
-      </div>
-      <p>
-        Si quieres, podemos hablar sobre una vacante, un proyecto o una colaboracion.
-      </p>
-      <a class="mail-link" href="mailto:tunombre@email.com">tunombre@email.com</a>
-      <p class="copyright">© <span id="year"></span> Tu Nombre. Todos los derechos reservados.</p>
+    <footer id="contacto" class="footer wrap reveal">
+      <h2>Contacto</h2>
+      <p id="contact-message" class="body-text"></p>
+      <a id="contact-email" class="mail-link" href="#"></a>
+      <div id="footer-social-links" class="social-links social-links-footer"></div>
+      <p class="copyright">(c) <span id="year"></span> <span id="footer-name"></span></p>
     </footer>
 
+    <button id="open-admin" class="admin-trigger" type="button">Editar contenido</button>
+
+    <div id="auth-modal" class="auth-modal" aria-hidden="true">
+      <div class="auth-card">
+        <h3>Acceso de administrador</h3>
+        <p class="auth-help">Inicia sesion con Auth0 para editar el contenido del CV.</p>
+        <form id="auth-form" class="auth-form">
+          <p id="auth-error" class="auth-error" aria-live="polite"></p>
+          <div class="auth-actions">
+            <button id="auth-login" class="btn btn-primary" type="submit">Ingresar con Auth0</button>
+            <button id="auth-cancel" class="btn btn-ghost" type="button">Cancelar</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <aside id="admin-panel" class="admin-panel" aria-hidden="true">
+      <div class="admin-header">
+        <h3>Panel de contenido</h3>
+        <div class="admin-header-actions">
+          <button id="logout-admin" type="button" class="close-btn">Cerrar sesion</button>
+          <button id="close-admin" type="button" class="close-btn">Cerrar</button>
+        </div>
+      </div>
+
+      <form id="admin-form" class="admin-form">
+        <label>Nombre<input name="name" type="text" required /></label>
+        <label>Rol<input name="role" type="text" required /></label>
+        <label>Etiqueta superior<input name="badge" type="text" required /></label>
+        <label>Resumen (hero)<textarea name="summary" rows="3" required></textarea></label>
+        <label>Sobre mi<textarea name="about" rows="4" required></textarea></label>
+        <label>Ubicacion<input name="location" type="text" required /></label>
+        <label>Email<input name="email" type="email" required /></label>
+        <label>Telefono<input name="phone" type="text" required /></label>
+        <label>Idiomas<input name="languages" type="text" required /></label>
+        <label>LinkedIn URL<input name="linkedin" type="url" required /></label>
+        <label>GitHub URL<input name="github" type="url" required /></label>
+        <label>Portfolio URL (opcional)<input name="portfolio" type="url" /></label>
+        <label>X/Twitter URL (opcional)<input name="twitter" type="url" /></label>
+        <label>Mensaje de contacto<textarea name="contactMessage" rows="3" required></textarea></label>
+        <label>
+          Habilidades (separadas por coma)
+          <textarea name="skills" rows="3" required></textarea>
+        </label>
+        <label>
+          Experiencia (1 por linea: periodo | cargo | descripcion)
+          <textarea name="experience" rows="5" required></textarea>
+        </label>
+        <label>
+          Proyectos (1 por linea: titulo | descripcion | stack)
+          <textarea name="projects" rows="5" required></textarea>
+        </label>
+
+        <div class="admin-actions">
+          <button class="btn btn-primary" type="submit">Guardar</button>
+          <button class="btn btn-ghost" id="reset-content" type="button">Restaurar</button>
+          <button class="btn btn-ghost" id="download-content" type="button">Descargar JSON</button>
+          <label class="import-label">
+            Cargar JSON
+            <input id="upload-content" type="file" accept="application/json" />
+          </label>
+        </div>
+      </form>
+    </aside>
+
+    <script src="https://cdn.auth0.com/js/auth0-spa-js/2.1/auth0-spa-js.production.js"></script>
+    <script src="config.js"></script>
     <script src="script.js"></script>
   </body>
 </html>
