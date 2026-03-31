@@ -1,0 +1,160 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>CV | Tu Nombre</title>
+    <meta
+      name="description"
+      content="Curriculum vitae online de Tu Nombre: experiencia, habilidades, proyectos y contacto."
+    />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;700;800&family=Syne:wght@500;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="bg-shape bg-shape-1"></div>
+    <div class="bg-shape bg-shape-2"></div>
+
+    <header class="hero" id="inicio">
+      <nav class="nav">
+        <a class="logo" href="#inicio">CV.</a>
+        <ul class="nav-links">
+          <li><a href="#sobre-mi">Sobre mi</a></li>
+          <li><a href="#experiencia">Experiencia</a></li>
+          <li><a href="#proyectos">Proyectos</a></li>
+          <li><a href="#contacto">Contacto</a></li>
+        </ul>
+      </nav>
+
+      <section class="hero-content reveal">
+        <p class="eyebrow">Disponible para nuevas oportunidades</p>
+        <h1>
+          Hola, soy <span>Tu Nombre</span><br />
+          y construyo experiencias digitales.
+        </h1>
+        <p class="intro">
+          Desarrollador/a web con foco en frontend, productos usables y codigo limpio.
+          Esta pagina resume mi perfil profesional, experiencia y proyectos destacados.
+        </p>
+        <div class="hero-actions">
+          <a class="btn btn-primary" href="#contacto">Contactar</a>
+          <a class="btn btn-secondary" href="#proyectos">Ver proyectos</a>
+        </div>
+      </section>
+    </header>
+
+    <main>
+      <section class="section reveal" id="sobre-mi">
+        <div class="section-head">
+          <p class="section-kicker">Perfil</p>
+          <h2>Sobre mi</h2>
+        </div>
+        <div class="card">
+          <p>
+            Soy una persona proactiva, orientada a resultados y con pasion por aprender.
+            Me gusta colaborar en equipos donde la comunicacion clara y la calidad tecnica
+            sean prioridad. Tengo experiencia en desarrollo de interfaces modernas,
+            integracion con APIs y optimizacion de rendimiento.
+          </p>
+          <ul class="quick-facts">
+            <li><strong>Ubicacion:</strong> Ciudad, Pais</li>
+            <li><strong>Email:</strong> tunombre@email.com</li>
+            <li><strong>Telefono:</strong> +54 9 11 0000 0000</li>
+            <li><strong>Idiomas:</strong> Espanol (nativo), Ingles (intermedio)</li>
+          </ul>
+        </div>
+      </section>
+
+      <section class="section reveal" id="experiencia">
+        <div class="section-head">
+          <p class="section-kicker">Trayectoria</p>
+          <h2>Experiencia</h2>
+        </div>
+        <div class="timeline">
+          <article class="timeline-item card">
+            <p class="timeline-date">2024 - Actualidad</p>
+            <h3>Desarrollador/a Frontend - Empresa X</h3>
+            <p>
+              Diseno e implementacion de interfaces accesibles con HTML, CSS, JavaScript y
+              frameworks modernos. Mejora de performance y mantenimiento de componentes reutilizables.
+            </p>
+          </article>
+          <article class="timeline-item card">
+            <p class="timeline-date">2022 - 2024</p>
+            <h3>Desarrollador/a Web - Empresa Y</h3>
+            <p>
+              Desarrollo de sitios corporativos y e-commerce, integrando APIs REST,
+              analytics y mejoras de SEO tecnico para aumentar conversiones.
+            </p>
+          </article>
+        </div>
+      </section>
+
+      <section class="section reveal" id="proyectos">
+        <div class="section-head">
+          <p class="section-kicker">Portfolio</p>
+          <h2>Proyectos destacados</h2>
+        </div>
+        <div class="projects-grid">
+          <article class="project card">
+            <h3>Proyecto 01</h3>
+            <p>
+              Plataforma web para gestion de tareas con autenticacion, dashboard y reportes.
+            </p>
+            <p class="stack">HTML, CSS, JavaScript</p>
+          </article>
+          <article class="project card">
+            <h3>Proyecto 02</h3>
+            <p>
+              Landing page de alto impacto orientada a conversion, optimizada para mobile.
+            </p>
+            <p class="stack">React, CSS Modules</p>
+          </article>
+          <article class="project card">
+            <h3>Proyecto 03</h3>
+            <p>
+              Sistema interno para visualizacion de metricas y automatizacion de reportes.
+            </p>
+            <p class="stack">TypeScript, API REST</p>
+          </article>
+        </div>
+      </section>
+
+      <section class="section reveal" id="habilidades">
+        <div class="section-head">
+          <p class="section-kicker">Fortalezas</p>
+          <h2>Habilidades</h2>
+        </div>
+        <div class="skills">
+          <span>HTML5</span>
+          <span>CSS3</span>
+          <span>JavaScript</span>
+          <span>TypeScript</span>
+          <span>React</span>
+          <span>Git</span>
+          <span>Responsive Design</span>
+          <span>UI/UX</span>
+        </div>
+      </section>
+    </main>
+
+    <footer class="footer section reveal" id="contacto">
+      <div class="section-head">
+        <p class="section-kicker">Conversemos</p>
+        <h2>Contacto</h2>
+      </div>
+      <p>
+        Si quieres, podemos hablar sobre una vacante, un proyecto o una colaboracion.
+      </p>
+      <a class="mail-link" href="mailto:tunombre@email.com">tunombre@email.com</a>
+      <p class="copyright">© <span id="year"></span> Tu Nombre. Todos los derechos reservados.</p>
+    </footer>
+
+    <script src="script.js"></script>
+  </body>
+</html>
