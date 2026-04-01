@@ -1,0 +1,10 @@
+{
+  "name": "my-own-website",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Personal CV website with production CMS backend",
+  "license": "UNLICENSED",
+  "dependencies": {
+    "@upstash/redis": "^1.37.0"
+  }
+}

@@ -1,4 +1,5 @@
 const STORAGE_KEY = 'cv-content-v1';
+const API_ENDPOINT = '/api/content';
 const RUNTIME_CONFIG = window.__CV_CONFIG || {};
 const normalizedAuth0Domain = normalizeAuth0Domain(RUNTIME_CONFIG.auth0Domain || '');
 const AUTH0_REDIRECT_URI = RUNTIME_CONFIG.auth0RedirectUri || window.location.origin;
@@ -10,72 +11,11 @@ const AUTH0_CONFIG = {
 };
 const AUTH0_SCOPE = 'openid profile email';
 const AUTH_INTENT_KEY = 'cv-admin-auth-intent';
+const { defaultContent, normalizeContent } = window.CV_CONTENT_MODEL || {};
 
-const defaultContent = {
-  name: 'Tu Nombre',
-  role: 'Desarrollador Web Frontend',
-  badge: 'Disponible para nuevas oportunidades',
-  summary:
-    'Construyo experiencias web de alto impacto, enfocadas en usabilidad, rendimiento y resultados de negocio.',
-  about:
-    'Perfil proactivo y orientado a resultados. Experiencia en interfaces modernas, colaboracion con equipos producto y optimizacion continua de procesos digitales.',
-  location: 'Ciudad, Pais',
-  email: 'tunombre@email.com',
-  phone: '+54 9 11 0000 0000',
-  languages: 'Espanol nativo, Ingles intermedio',
-  social: {
-    linkedin: 'https://www.linkedin.com/in/luciano-bergaglio-a9001b172/',
-    github: 'https://github.com/lbergaglio',
-    portfolio: '',
-    twitter: '',
-  },
-  contactMessage:
-    'Si te interesa mi perfil para una posicion o proyecto, estare encantado de conversar.',
-  skills: [
-    'HTML5',
-    'CSS3',
-    'JavaScript',
-    'TypeScript',
-    'React',
-    'Git',
-    'Responsive Design',
-    'UI Systems',
-  ],
-  experience: [
-    {
-      period: '2024 - Actualidad',
-      title: 'Desarrollador Frontend - Empresa X',
-      description:
-        'Diseno e implementacion de interfaces accesibles, mantenimiento de componentes reutilizables y mejora de performance.',
-    },
-    {
-      period: '2022 - 2024',
-      title: 'Desarrollador Web - Empresa Y',
-      description:
-        'Desarrollo de sitios corporativos y e-commerce con integraciones API, SEO tecnico y mejoras de conversion.',
-    },
-  ],
-  projects: [
-    {
-      title: 'Dashboard Operativo',
-      description:
-        'Aplicacion interna para seguimiento de metricas y visualizacion de objetivos en tiempo real.',
-      stack: 'TypeScript, API REST, Charts',
-    },
-    {
-      title: 'Landing de Conversion',
-      description:
-        'Sitio orientado a captacion de leads con estrategia UX y tests de performance.',
-      stack: 'HTML, CSS, JavaScript',
-    },
-    {
-      title: 'Portal de Clientes',
-      description:
-        'Portal con autenticacion y seccion autogestion para reducir consultas manuales.',
-      stack: 'React, Node API',
-    },
-  ],
-};
+if (!defaultContent || !normalizeContent) {
+  throw new Error('content-model.js must be loaded before script.js');
+}
 
 const refs = {
   heroBadge: document.getElementById('hero-badge'),
@@ -113,47 +53,52 @@ const admin = {
 
 const auth0ClientPromise = createAuth0ClientInstance();
 
-let cvContent = loadContent();
+let cvContent = loadCachedContent() || structuredClone(defaultContent);
 
 render(cvContent);
 populateForm(cvContent);
 initReveal();
 bindAdminActions();
-void initializeAuthFlow();
+void bootstrap();
 
-function loadContent() {
+async function bootstrap() {
+  cvContent = await loadContent();
+  render(cvContent);
+  populateForm(cvContent);
+  await initializeAuthFlow();
+}
+
+async function fetchRemoteContent() {
+  const response = await fetch(API_ENDPOINT, { headers: { Accept: 'application/json' } });
+  if (!response.ok) {
+    throw new Error('Failed to load content from API');
+  }
+
+  return normalizeContent(await response.json());
+}
+
+async function loadContent() {
+  try {
+    const remoteContent = await fetchRemoteContent();
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(remoteContent));
+    return remoteContent;
+  } catch (error) {
+    return loadCachedContent() || structuredClone(defaultContent);
+  }
+}
+
+function loadCachedContent() {
   const raw = localStorage.getItem(STORAGE_KEY);
   if (!raw) {
-    return structuredClone(defaultContent);
+    return null;
   }
 
   try {
     const parsed = JSON.parse(raw);
     return normalizeContent(parsed);
   } catch (error) {
-    return structuredClone(defaultContent);
+    return null;
   }
-}
-
-function normalizeContent(input) {
-  const merged = {
-    ...defaultContent,
-    ...input,
-  };
-
-  merged.skills = Array.isArray(input.skills) ? input.skills.filter(Boolean) : [...defaultContent.skills];
-  merged.social = {
-    ...defaultContent.social,
-    ...(input.social || {}),
-  };
-  merged.experience = Array.isArray(input.experience)
-    ? input.experience.filter((item) => item && item.period && item.title && item.description)
-    : [...defaultContent.experience];
-  merged.projects = Array.isArray(input.projects)
-    ? input.projects.filter((item) => item && item.title && item.description && item.stack)
-    : [...defaultContent.projects];
-
-  return merged;
 }
 
 function render(content) {
@@ -283,23 +228,11 @@ function bindAdminActions() {
 
   admin.form.addEventListener('submit', (event) => {
     event.preventDefault();
-    const next = collectFormData();
-    if (!next) {
-      alert('Revisa el formato de Experiencia y Proyectos. Usa: campo | campo | campo');
-      return;
-    }
-
-    cvContent = normalizeContent(next);
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(cvContent));
-    render(cvContent);
-    alert('Contenido actualizado.');
+    void saveSubmittedContent();
   });
 
   admin.resetBtn.addEventListener('click', () => {
-    cvContent = structuredClone(defaultContent);
-    localStorage.removeItem(STORAGE_KEY);
-    render(cvContent);
-    populateForm(cvContent);
+    void resetContent();
   });
 
   admin.downloadBtn.addEventListener('click', () => {
@@ -332,6 +265,82 @@ function bindAdminActions() {
       admin.uploadInput.value = '';
     }
   });
+}
+
+async function saveSubmittedContent() {
+  const next = collectFormData();
+  if (!next) {
+    alert('Revisa el formato de Experiencia y Proyectos. Usa: campo | campo | campo');
+    return;
+  }
+
+  try {
+    const saved = await saveContent(next);
+    cvContent = saved;
+    render(cvContent);
+    populateForm(cvContent);
+    alert('Contenido guardado en el CMS.');
+  } catch (error) {
+    alert(error.message || 'No se pudo guardar el contenido.');
+  }
+}
+
+async function resetContent() {
+  try {
+    const saved = await saveContent(structuredClone(defaultContent));
+    cvContent = saved;
+    render(cvContent);
+    populateForm(cvContent);
+    localStorage.removeItem(STORAGE_KEY);
+    alert('Contenido restaurado y guardado.');
+  } catch (error) {
+    alert(error.message || 'No se pudo restaurar el contenido.');
+  }
+}
+
+async function saveContent(nextContent) {
+  const response = await fetch(API_ENDPOINT, {
+    method: 'PUT',
+    headers: await buildAuthHeaders(),
+    body: JSON.stringify(normalizeContent(nextContent)),
+  });
+
+  if (!response.ok) {
+    const errorData = await readErrorResponse(response);
+    throw new Error(errorData.error || 'No se pudo guardar el contenido.');
+  }
+
+  const saved = normalizeContent(await response.json());
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(saved));
+  return saved;
+}
+
+async function buildAuthHeaders() {
+  const client = await getAuth0Client();
+  if (!client) {
+    throw new Error('Auth0 no esta configurado.');
+  }
+
+  const accessToken = await client.getTokenSilently({
+    authorizationParams: {
+      redirect_uri: AUTH0_REDIRECT_URI,
+      scope: AUTH0_SCOPE,
+      audience: AUTH0_CONFIG.audience || undefined,
+    },
+  });
+
+  return {
+    'Content-Type': 'application/json',
+    Authorization: `Bearer ${accessToken}`,
+  };
+}
+
+async function readErrorResponse(response) {
+  try {
+    return await response.json();
+  } catch (error) {
+    return { error: 'Respuesta invalida del servidor' };
+  }
 }
 
 function openAdminPanel() {
@@ -536,6 +545,10 @@ function parsePipeLines(text, keys) {
 
 function initReveal() {
   const revealElements = document.querySelectorAll('.reveal');
+  if (window.__cvRevealObserver) {
+    window.__cvRevealObserver.disconnect();
+  }
+
   const observer = new IntersectionObserver(
     (entries) => {
       entries.forEach((entry) => {
@@ -546,6 +559,8 @@ function initReveal() {
     },
     { threshold: 0.18 }
   );
+
+  window.__cvRevealObserver = observer;
 
   revealElements.forEach((element, index) => {
     if (!element.classList.contains('visible')) {
