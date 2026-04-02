@@ -3,7 +3,7 @@ const STORAGE_KEY = 'cv-content-v1';
 const API_ENDPOINT = '/api/content';
 const GITHUB_STATS_CACHE_KEY = 'cv-github-stats-v1';
 
-// Config runtime inyectada desde config.js.
+// Config runtime inyectada desde /api/config.
 const RUNTIME_CONFIG = window.__CV_CONFIG || {};
 const normalizedAuth0Domain = normalizeAuth0Domain(RUNTIME_CONFIG.auth0Domain || '');
 const AUTH0_REDIRECT_URI = RUNTIME_CONFIG.auth0RedirectUri || window.location.origin;
@@ -648,7 +648,7 @@ function renderGithubStats(stats, error) {
           <h3 class="github-featured-title">No se pudo cargar la actividad</h3>
         </div>
       </div>
-      <p class="github-featured-body">Revisa la conexion a internet o el nombre de usuario configurado en <code>config.js</code>.</p>
+      <p class="github-featured-body">Revisa la conexion a internet o el nombre de usuario configurado en <code>api/config.js</code>.</p>
     `;
     refs.githubStats.appendChild(fallback);
     return;
