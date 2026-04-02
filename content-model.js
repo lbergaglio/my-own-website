@@ -1,3 +1,4 @@
+// UMD: expone el modelo tanto para navegador como para Node (API server).
 (function (root, factory) {
   const model = factory();
 
@@ -9,6 +10,7 @@
     root.CV_CONTENT_MODEL = model;
   }
 })(typeof window !== 'undefined' ? window : globalThis, function () {
+  // Estructura base del CV. Se usa como fallback y como plantilla de restauracion.
   const defaultContent = {
     name: 'Tu Nombre',
     role: 'Desarrollador Web Frontend',
@@ -75,6 +77,7 @@
     ],
   };
 
+  // Asegura shape estable y limpia valores invalidos antes de renderizar/persistir.
   function normalizeContent(input) {
     const source = isPlainObject(input) ? input : {};
 
@@ -125,15 +128,18 @@
     return merged;
   }
 
+  // Normaliza strings removiendo espacios y aplicando fallback cuando queda vacio.
   function cleanString(value, fallback = '') {
     const text = String(value ?? '').trim();
     return text.length > 0 ? text : fallback;
   }
 
+  // Verifica objetos "plain" para evitar arrays u otros tipos no esperados.
   function isPlainObject(value) {
     return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
   }
 
+  // API publica del modulo.
   return {
     defaultContent,
     normalizeContent,

@@ -17,9 +17,11 @@
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
+    <!-- Elementos decorativos de fondo -->
     <div class="mesh mesh-a"></div>
     <div class="mesh mesh-b"></div>
 
+    <!-- Navegacion principal -->
     <header class="topbar wrap">
       <a class="brand" href="#inicio">PortfolioCV</a>
       <nav>
@@ -27,12 +29,15 @@
           <li><a href="#sobre-mi">Perfil</a></li>
           <li><a href="#experiencia">Experiencia</a></li>
           <li><a href="#proyectos">Proyectos</a></li>
+          <li><a href="#github">GitHub</a></li>
           <li><a href="#contacto">Contacto</a></li>
         </ul>
       </nav>
     </header>
 
+    <!-- Contenido principal del CV -->
     <main id="inicio" class="wrap">
+      <!-- Hero con CTA y accesos sociales -->
       <section class="hero reveal">
         <div class="hero-copy">
           <p id="hero-badge" class="badge-text"></p>
@@ -53,6 +58,7 @@
         </aside>
       </section>
 
+      <!-- Resumen profesional -->
       <section id="sobre-mi" class="section reveal">
         <div class="section-head">
           <p class="section-tag">Perfil profesional</p>
@@ -63,6 +69,7 @@
         </article>
       </section>
 
+      <!-- Trayectoria laboral -->
       <section id="experiencia" class="section reveal">
         <div class="section-head">
           <p class="section-tag">Carrera</p>
@@ -71,6 +78,7 @@
         <div id="experience-list" class="experience-grid"></div>
       </section>
 
+      <!-- Proyectos destacados -->
       <section id="proyectos" class="section reveal">
         <div class="section-head">
           <p class="section-tag">Trabajo destacado</p>
@@ -79,6 +87,16 @@
         <div id="project-list" class="project-grid"></div>
       </section>
 
+      <!-- Tarjetas con datos en vivo de GitHub -->
+      <section id="github" class="section reveal">
+        <div class="section-head">
+          <p class="section-tag">GitHub en vivo</p>
+          <h2>Estadisticas y actividad</h2>
+        </div>
+        <div id="github-stats" class="github-stats-grid"></div>
+      </section>
+
+      <!-- Nube de habilidades -->
       <section id="habilidades" class="section reveal">
         <div class="section-head">
           <p class="section-tag">Especialidades</p>
@@ -88,6 +106,7 @@
       </section>
     </main>
 
+    <!-- Pie con contacto -->
     <footer id="contacto" class="footer wrap reveal">
       <h2>Contacto</h2>
       <p id="contact-message" class="body-text"></p>
@@ -96,8 +115,10 @@
       <p class="copyright">(c) <span id="year"></span> <span id="footer-name"></span></p>
     </footer>
 
+    <!-- Boton flotante para abrir el panel de administracion -->
     <button id="open-admin" class="admin-trigger" type="button">Editar contenido</button>
 
+    <!-- Modal de autenticacion Auth0 -->
     <div id="auth-modal" class="auth-modal" aria-hidden="true">
       <div class="auth-card">
         <h3>Acceso de administrador</h3>
@@ -112,6 +133,7 @@
       </div>
     </div>
 
+    <!-- Panel lateral para editar contenido -->
     <aside id="admin-panel" class="admin-panel" aria-hidden="true">
       <div class="admin-header">
         <h3>Panel de contenido</h3>
@@ -161,6 +183,7 @@
       </form>
     </aside>
 
+    <!-- Orden importante: SDK -> config -> modelo -> logica principal -->
     <script src="https://cdn.auth0.com/js/auth0-spa-js/2.1/auth0-spa-js.production.js"></script>
     <script src="config.js"></script>
     <script src="content-model.js"></script>

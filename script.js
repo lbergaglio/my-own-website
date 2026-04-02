@@ -1,9 +1,17 @@
+// Claves de persistencia local y endpoint del CMS.
 const STORAGE_KEY = 'cv-content-v1';
 const API_ENDPOINT = '/api/content';
+const GITHUB_STATS_CACHE_KEY = 'cv-github-stats-v1';
+
+// Config runtime inyectada desde config.js.
 const RUNTIME_CONFIG = window.__CV_CONFIG || {};
 const normalizedAuth0Domain = normalizeAuth0Domain(RUNTIME_CONFIG.auth0Domain || '');
 const AUTH0_REDIRECT_URI = RUNTIME_CONFIG.auth0RedirectUri || window.location.origin;
 const AUTH0_CONNECTION = String(RUNTIME_CONFIG.auth0Connection || '').trim();
+const GITHUB_USERNAME = String(RUNTIME_CONFIG.githubUsername || '').trim();
+const GITHUB_STATS_CACHE_MINUTES = Number(RUNTIME_CONFIG.githubStatsCacheMinutes || 30);
+
+// Parametros de autenticacion para Auth0 SPA SDK.
 const AUTH0_CONFIG = {
   domain: normalizedAuth0Domain || 'REEMPLAZAR_TU_DOMINIO.auth0.com',
   clientId: RUNTIME_CONFIG.auth0ClientId || 'REEMPLAZAR_CLIENT_ID',
@@ -17,6 +25,7 @@ if (!defaultContent || !normalizeContent) {
   throw new Error('content-model.js must be loaded before script.js');
 }
 
+// Referencias a nodos de UI para renderizar contenido publico.
 const refs = {
   heroBadge: document.getElementById('hero-badge'),
   heroName: document.getElementById('hero-name'),
@@ -26,6 +35,7 @@ const refs = {
   aboutText: document.getElementById('about-text'),
   experienceList: document.getElementById('experience-list'),
   projectList: document.getElementById('project-list'),
+  githubStats: document.getElementById('github-stats'),
   skillsList: document.getElementById('skills-list'),
   contactMessage: document.getElementById('contact-message'),
   contactEmail: document.getElementById('contact-email'),
@@ -35,6 +45,7 @@ const refs = {
   year: document.getElementById('year'),
 };
 
+// Referencias al panel administrativo y modal de login.
 const admin = {
   panel: document.getElementById('admin-panel'),
   openBtn: document.getElementById('open-admin'),
@@ -51,23 +62,29 @@ const admin = {
   authCancel: document.getElementById('auth-cancel'),
 };
 
+// Cliente Auth0 lazy (promesa compartida para evitar multiples instancias).
 const auth0ClientPromise = createAuth0ClientInstance();
 
+// Estado en memoria del contenido actual del CV.
 let cvContent = loadCachedContent() || structuredClone(defaultContent);
 
+// Render inicial inmediato para reducir tiempo a primer contenido.
 render(cvContent);
 populateForm(cvContent);
 initReveal();
 bindAdminActions();
 void bootstrap();
 
+// Inicializacion asincronica: prioriza CMS remoto y luego auth/github.
 async function bootstrap() {
   cvContent = await loadContent();
   render(cvContent);
   populateForm(cvContent);
+  void loadAndRenderGithubStats();
   await initializeAuthFlow();
 }
 
+// Obtiene contenido desde API serverless.
 async function fetchRemoteContent() {
   const response = await fetch(API_ENDPOINT, { headers: { Accept: 'application/json' } });
   if (!response.ok) {
@@ -77,6 +94,7 @@ async function fetchRemoteContent() {
   return normalizeContent(await response.json());
 }
 
+// Estrategia de carga: remoto primero, cache/local como fallback.
 async function loadContent() {
   try {
     const remoteContent = await fetchRemoteContent();
@@ -87,6 +105,7 @@ async function loadContent() {
   }
 }
 
+// Lee cache local y la normaliza para evitar datos corruptos.
 function loadCachedContent() {
   const raw = localStorage.getItem(STORAGE_KEY);
   if (!raw) {
@@ -101,6 +120,7 @@ function loadCachedContent() {
   }
 }
 
+// Renderiza todas las secciones visibles del sitio a partir del modelo de contenido.
 function render(content) {
   refs.heroBadge.textContent = content.badge;
   refs.heroName.textContent = content.name;
@@ -164,6 +184,10 @@ function render(content) {
     refs.projectList.appendChild(article);
   });
 
+  if (refs.githubStats && refs.githubStats.children.length === 0) {
+    renderGithubStatsSkeleton();
+  }
+
   refs.skillsList.innerHTML = '';
   content.skills.forEach((skill) => {
     const span = document.createElement('span');
@@ -175,6 +199,7 @@ function render(content) {
   initReveal();
 }
 
+// Completa el formulario admin con el estado actual del contenido.
 function populateForm(content) {
   admin.form.elements.name.value = content.name;
   admin.form.elements.role.value = content.role;
@@ -199,6 +224,7 @@ function populateForm(content) {
     .join('\n');
 }
 
+// Conecta listeners de UI para acciones administrativas y utilidades JSON.
 function bindAdminActions() {
   admin.openBtn.addEventListener('click', async () => {
     if (await isAuthenticated()) {
@@ -267,6 +293,7 @@ function bindAdminActions() {
   });
 }
 
+// Guarda cambios del formulario y refresca UI/cache.
 async function saveSubmittedContent() {
   const next = collectFormData();
   if (!next) {
@@ -285,6 +312,7 @@ async function saveSubmittedContent() {
   }
 }
 
+// Restaura contenido por defecto y lo persiste remotamente.
 async function resetContent() {
   try {
     const saved = await saveContent(structuredClone(defaultContent));
@@ -298,6 +326,7 @@ async function resetContent() {
   }
 }
 
+// Persiste contenido en API protegida con token Auth0.
 async function saveContent(nextContent) {
   const response = await fetch(API_ENDPOINT, {
     method: 'PUT',
@@ -315,6 +344,7 @@ async function saveContent(nextContent) {
   return saved;
 }
 
+// Construye headers de autorizacion para endpoints protegidos.
 async function buildAuthHeaders() {
   const client = await getAuth0Client();
   if (!client) {
@@ -335,6 +365,7 @@ async function buildAuthHeaders() {
   };
 }
 
+// Intenta parsear error JSON del backend sin romper flujo.
 async function readErrorResponse(response) {
   try {
     return await response.json();
@@ -343,6 +374,7 @@ async function readErrorResponse(response) {
   }
 }
 
+// Control visual del panel admin.
 function openAdminPanel() {
   admin.panel.classList.add('open');
   admin.panel.setAttribute('aria-hidden', 'false');
@@ -353,6 +385,7 @@ function closeAdminPanel() {
   admin.panel.setAttribute('aria-hidden', 'true');
 }
 
+// Abre modal de auth y valida configuracion minima de Auth0.
 function openAuthModal() {
   admin.authModal.classList.add('open');
   admin.authModal.setAttribute('aria-hidden', 'false');
@@ -367,11 +400,13 @@ function openAuthModal() {
   admin.authLoginBtn.focus();
 }
 
+// Cierra modal de auth.
 function closeAuthModal() {
   admin.authModal.classList.remove('open');
   admin.authModal.setAttribute('aria-hidden', 'true');
 }
 
+// Consulta estado de sesion en Auth0.
 async function isAuthenticated() {
   const client = await getAuth0Client();
   if (!client) {
@@ -385,6 +420,7 @@ async function isAuthenticated() {
   }
 }
 
+// Crea cliente Auth0 solo si el SDK y la configuracion estan disponibles.
 async function createAuth0ClientInstance() {
   if (!window.auth0 || !isAuthConfigured()) {
     return null;
@@ -404,6 +440,7 @@ async function createAuth0ClientInstance() {
   return client;
 }
 
+// Verifica placeholders para evitar intentos de auth incompletos.
 function isAuthConfigured() {
   return (
     AUTH0_CONFIG.domain &&
@@ -413,10 +450,12 @@ function isAuthConfigured() {
   );
 }
 
+// Accessor central para cliente Auth0.
 async function getAuth0Client() {
   return auth0ClientPromise;
 }
 
+// Login principal: popup; fallback a redirect cuando el navegador bloquea popups.
 async function loginAuth0() {
   admin.authError.textContent = '';
 
@@ -460,6 +499,7 @@ async function loginAuth0() {
   }
 }
 
+// Logout local del cliente Auth0 sin abandonar la pagina.
 async function logoutAuth0() {
   closeAdminPanel();
 
@@ -474,6 +514,7 @@ async function logoutAuth0() {
   alert('Sesion cerrada.');
 }
 
+// Convierte el formulario admin a estructura de contenido normalizada.
 function collectFormData() {
   const form = admin.form.elements;
 
@@ -510,6 +551,7 @@ function collectFormData() {
   };
 }
 
+// Crea ancla social segura hacia URL externa.
 function createSocialLink(label, url) {
   const anchor = document.createElement('a');
   anchor.className = 'social-link';
@@ -520,6 +562,263 @@ function createSocialLink(label, url) {
   return anchor;
 }
 
+// Estado visual temporal mientras se consulta GitHub API.
+function renderGithubStatsSkeleton() {
+  if (!refs.githubStats) {
+    return;
+  }
+
+  refs.githubStats.innerHTML = '';
+
+  const placeholders = [
+    ['Repos públicos', '—'],
+    ['Estrellas', '—'],
+    ['Seguidores', '—'],
+    ['Ultima actualización', '—'],
+  ];
+
+  placeholders.forEach(([label, value]) => {
+    refs.githubStats.appendChild(createStatCard(label, value));
+  });
+
+  const featured = document.createElement('article');
+  featured.className = 'github-featured';
+  featured.innerHTML = `
+    <div class="github-featured-head">
+      <div>
+        <p class="meta">Repositorio destacado</p>
+        <h3 class="github-featured-title">Cargando actividad de GitHub</h3>
+      </div>
+    </div>
+    <p class="github-featured-body">La pagina consulta la API publica de GitHub para mostrar estadisticas y repositorios recientes.</p>
+    <div class="github-featured-meta">
+      <span class="github-pill">Auto-refresh desde GitHub</span>
+    </div>
+  `;
+  refs.githubStats.appendChild(featured);
+}
+
+// Fabrica de tarjetas de estadistica.
+function createStatCard(label, value) {
+  const article = document.createElement('article');
+  article.className = 'github-stat';
+  article.innerHTML = `
+    <span class="github-stat-label">${escapeHTML(label)}</span>
+    <strong class="github-stat-value">${escapeHTML(value)}</strong>
+  `;
+  return article;
+}
+
+// Orquesta carga de estadisticas de GitHub y render con manejo de errores.
+async function loadAndRenderGithubStats() {
+  if (!refs.githubStats) {
+    return;
+  }
+
+  if (!GITHUB_USERNAME) {
+    refs.githubStats.innerHTML = '';
+    refs.githubStats.appendChild(createStatCard('GitHub', 'Configurar usuario'));
+    return;
+  }
+
+  try {
+    const stats = await loadGithubStats(GITHUB_USERNAME);
+    renderGithubStats(stats);
+  } catch (error) {
+    renderGithubStats(null, error);
+  }
+}
+
+// Render final de cards GitHub con fallback si no hay datos.
+function renderGithubStats(stats, error) {
+  if (!refs.githubStats) {
+    return;
+  }
+
+  refs.githubStats.innerHTML = '';
+
+  if (!stats) {
+    refs.githubStats.appendChild(createStatCard('GitHub', error ? 'No disponible' : 'Sin datos'));
+    const fallback = document.createElement('article');
+    fallback.className = 'github-featured';
+    fallback.innerHTML = `
+      <div class="github-featured-head">
+        <div>
+          <p class="meta">Repositorio destacado</p>
+          <h3 class="github-featured-title">No se pudo cargar la actividad</h3>
+        </div>
+      </div>
+      <p class="github-featured-body">Revisa la conexion a internet o el nombre de usuario configurado en <code>config.js</code>.</p>
+    `;
+    refs.githubStats.appendChild(fallback);
+    return;
+  }
+
+  [
+    ['Repos públicos', String(stats.publicRepos)],
+    ['Estrellas', String(stats.stars)],
+    ['Seguidores', String(stats.followers)],
+    ['Ultima actualización', stats.lastUpdateLabel],
+  ].forEach(([label, value]) => {
+    refs.githubStats.appendChild(createStatCard(label, value));
+  });
+
+  const featured = document.createElement('article');
+  featured.className = 'github-featured';
+  featured.innerHTML = `
+    <div class="github-featured-head">
+      <div>
+        <p class="meta">Repositorio destacado</p>
+        <h3 class="github-featured-title">${escapeHTML(stats.featuredRepo.name)}</h3>
+      </div>
+      <a class="github-featured-link" href="${escapeHTML(stats.featuredRepo.url)}" target="_blank" rel="noreferrer noopener">Abrir</a>
+    </div>
+    <p class="github-featured-body">${escapeHTML(stats.featuredRepo.description)}</p>
+    <div class="github-featured-meta">
+      ${stats.featuredRepo.language ? `<span class="github-pill">${escapeHTML(stats.featuredRepo.language)}</span>` : ''}
+      <span class="github-pill">⭐ ${stats.featuredRepo.stars}</span>
+      <span class="github-pill">Forks ${stats.featuredRepo.forks}</span>
+      <span class="github-pill">Actualizado ${escapeHTML(stats.featuredRepo.updatedAtLabel)}</span>
+    </div>
+  `;
+  refs.githubStats.appendChild(featured);
+}
+
+// Consulta API publica de GitHub y aplica cache temporal en localStorage.
+async function loadGithubStats(username) {
+  const cached = loadGithubStatsCache();
+  if (cached && Date.now() - cached.cachedAt < GITHUB_STATS_CACHE_MINUTES * 60 * 1000) {
+    return cached.stats;
+  }
+
+  const [userResponse, reposResponse] = await Promise.all([
+    fetch(`https://api.github.com/users/${encodeURIComponent(username)}`, {
+      headers: { Accept: 'application/vnd.github+json' },
+    }),
+    fetch(`https://api.github.com/users/${encodeURIComponent(username)}/repos?sort=updated&per_page=20&type=owner`, {
+      headers: { Accept: 'application/vnd.github+json' },
+    }),
+  ]);
+
+  if (!userResponse.ok || !reposResponse.ok) {
+    throw new Error('No se pudo consultar la API de GitHub');
+  }
+
+  const user = await userResponse.json();
+  const repos = await reposResponse.json();
+  const stats = normalizeGithubStats(user, repos);
+
+  saveGithubStatsCache(stats);
+  return stats;
+}
+
+// Normaliza payload de GitHub en un modelo listo para UI.
+function normalizeGithubStats(user, repos) {
+  const repoList = Array.isArray(repos) ? repos : [];
+  const featuredRepoSource = repoList
+    .filter((repo) => !repo.fork)
+    .sort((left, right) => (right.stargazers_count || 0) - (left.stargazers_count || 0) || new Date(right.updated_at).getTime() - new Date(left.updated_at).getTime())[0]
+    || repoList[0]
+    || null;
+
+  const stars = repoList.reduce((total, repo) => total + Number(repo.stargazers_count || 0), 0);
+
+  return {
+    publicRepos: Number(user.public_repos || repoList.length || 0),
+    stars,
+    followers: Number(user.followers || 0),
+    lastUpdateLabel: formatRelativeDate(user.updated_at || new Date().toISOString()),
+    featuredRepo: normalizeFeaturedRepo(featuredRepoSource),
+  };
+}
+
+// Elige repositorio destacado o construye fallback amigable.
+function normalizeFeaturedRepo(repo) {
+  if (!repo) {
+    return {
+      name: 'Sin repositorio destacado',
+      description: 'Crea un repositorio público para mostrar actividad en vivo.',
+      url: `https://github.com/${GITHUB_USERNAME}`,
+      language: '',
+      stars: 0,
+      forks: 0,
+      updatedAtLabel: 'hoy',
+    };
+  }
+
+  return {
+    name: repo.name || 'Repositorio sin nombre',
+    description: repo.description || 'Sin descripción disponible.',
+    url: repo.html_url || `https://github.com/${GITHUB_USERNAME}`,
+    language: repo.language || '',
+    stars: Number(repo.stargazers_count || 0),
+    forks: Number(repo.forks_count || 0),
+    updatedAtLabel: formatRelativeDate(repo.updated_at || new Date().toISOString()),
+  };
+}
+
+// Lectura tolerante a fallos de cache de estadisticas GitHub.
+function loadGithubStatsCache() {
+  try {
+    const raw = localStorage.getItem(GITHUB_STATS_CACHE_KEY);
+    if (!raw) {
+      return null;
+    }
+
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== 'object') {
+      return null;
+    }
+
+    return parsed;
+  } catch (error) {
+    return null;
+  }
+}
+
+// Persistencia best-effort del cache GitHub.
+function saveGithubStatsCache(stats) {
+  try {
+    localStorage.setItem(
+      GITHUB_STATS_CACHE_KEY,
+      JSON.stringify({ cachedAt: Date.now(), stats })
+    );
+  } catch (error) {
+    return;
+  }
+}
+
+// Convierte fecha ISO a etiqueta relativa en espanol.
+function formatRelativeDate(isoDate) {
+  const date = new Date(isoDate);
+  if (Number.isNaN(date.getTime())) {
+    return 'sin fecha';
+  }
+
+  const now = new Date();
+  const diffInDays = Math.max(0, Math.round((now.getTime() - date.getTime()) / (1000 * 60 * 60 * 24)));
+
+  if (diffInDays === 0) {
+    return 'hoy';
+  }
+
+  if (diffInDays === 1) {
+    return 'hace 1 día';
+  }
+
+  if (diffInDays < 30) {
+    return `hace ${diffInDays} días`;
+  }
+
+  const months = Math.round(diffInDays / 30);
+  if (months === 1) {
+    return 'hace 1 mes';
+  }
+
+  return `hace ${months} meses`;
+}
+
+// Parsea lineas con formato: campo | campo | campo.
 function parsePipeLines(text, keys) {
   const lines = text
     .split('\n')
@@ -543,6 +842,7 @@ function parsePipeLines(text, keys) {
   return result;
 }
 
+// Observer de interseccion para animaciones reveal por scroll.
 function initReveal() {
   const revealElements = document.querySelectorAll('.reveal');
   if (window.__cvRevealObserver) {
@@ -570,6 +870,7 @@ function initReveal() {
   });
 }
 
+// Escape defensivo para interpolaciones HTML seguras.
 function escapeHTML(value) {
   return String(value)
     .replaceAll('&', '&amp;')
@@ -579,6 +880,7 @@ function escapeHTML(value) {
     .replaceAll("'", '&#39;');
 }
 
+// Permite configurar Auth0 con dominio corto o completo.
 function normalizeAuth0Domain(domain) {
   const clean = String(domain).trim();
   if (!clean) {
@@ -592,6 +894,7 @@ function normalizeAuth0Domain(domain) {
   return `${clean}.auth0.com`;
 }
 
+// Completa callbacks de redirect de Auth0 y reabre admin si habia intencion previa.
 async function initializeAuthFlow() {
   const client = await getAuth0Client();
   if (!client) {
@@ -618,6 +921,7 @@ async function initializeAuthFlow() {
   }
 }
 
+// Traduce errores comunes de Auth0 a mensajes mas accionables.
 function getAuthErrorMessage(error) {
   const message = String(error?.message || error?.error_description || '').toLowerCase();
   if (message.includes('callback url mismatch') || message.includes('redirect_uri')) {
