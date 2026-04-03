@@ -1,9 +1,40 @@
-const { Redis } = require('@upstash/redis');
+const { MongoClient } = require('mongodb');
 const { defaultContent, normalizeContent } = require('../content-model');
 
-// Clave unica para el documento de contenido dentro de Redis.
-const STORAGE_KEY = 'cv-content-v1';
-const redis = Redis.fromEnv();
+// MongoDB connection singleton for serverless (Vercel recycles between invocations).
+let mongoClient = null;
+
+async function getMongoCollection() {
+  const uri = process.env.MONGODB_URI || '';
+  if (!uri) {
+    const error = new Error('MongoDB URI is not configured');
+    error.statusCode = 500;
+    throw error;
+  }
+
+  // Reconectar si la topología está cerrada (Vercel serverless issue).
+  if (mongoClient && !mongoClient.topology?.isConnected()) {
+    mongoClient = null;
+  }
+
+  if (!mongoClient) {
+    mongoClient = new MongoClient(uri, { 
+      maxPoolSize: 1,
+      serverSelectionTimeoutMS: 10000,
+      socketTimeoutMS: 10000,
+      connectTimeoutMS: 10000,
+      retryWrites: true,
+      w: 'majority',
+      // Agregamos opciones SSL para mayor compatibilidad
+      ssl: true,
+      authSource: 'admin',
+    });
+    await mongoClient.connect();
+  }
+
+  const db = mongoClient.db('cv-portfolio');
+  return db.collection('content');
+}
 
 // Endpoint serverless para leer/escribir el contenido editable del CV.
 module.exports = async function handler(req, res) {
@@ -16,9 +47,10 @@ module.exports = async function handler(req, res) {
 
   if (req.method === 'GET') {
     try {
-      // Si existe contenido remoto, lo normaliza y devuelve.
-      const content = await redis.get(STORAGE_KEY);
-      return res.status(200).json(normalizeContent(content || defaultContent));
+      const collection = await getMongoCollection();
+      const doc = await collection.findOne({ _id: 'cv-content-v1' });
+      const content = doc?.data || defaultContent;
+      return res.status(200).json(normalizeContent(content));
     } catch (error) {
       // Fallback seguro para no romper la UI ante errores de infraestructura.
       return res.status(200).json(defaultContent);
@@ -43,8 +75,13 @@ module.exports = async function handler(req, res) {
     const body = await readJsonBody(req);
     const content = normalizeContent(body);
 
-    // Persistimos un unico documento JSON del CV.
-    await redis.set(STORAGE_KEY, content);
+    // Persistimos un documento JSON del CV en MongoDB.
+    const collection = await getMongoCollection();
+    await collection.updateOne(
+      { _id: 'cv-content-v1' },
+      { $set: { data: content, updatedAt: new Date() } },
+      { upsert: true }
+    );
 
     return res.status(200).json(content);
   } catch (error) {
@@ -96,15 +133,38 @@ function authorizeUser(user) {
 
   const email = String(user?.email || '').toLowerCase();
   const sub = String(user?.sub || '').trim();
+  const normalizedSub = sub.toLowerCase();
 
   const emailAllowed = allowedEmails.length > 0 && allowedEmails.includes(email);
-  const subAllowed = allowedSubs.length > 0 && allowedSubs.includes(sub);
+  const subAllowed = allowedSubs.length > 0 && isAllowedSub(normalizedSub, allowedSubs);
 
   if (!emailAllowed && !subAllowed) {
-    const error = new Error('User is not allowed to edit content');
+    const error = new Error(`User is not allowed to edit content (sub: ${sub || 'n/a'})`);
     error.statusCode = 403;
     throw error;
   }
+}
+
+// Permite comparar sub exacto y variantes comunes (id final o proveedor|id).
+function isAllowedSub(normalizedSub, allowedSubs) {
+  if (!normalizedSub) {
+    return false;
+  }
+
+  const parts = normalizedSub.split('|').filter(Boolean);
+  const onlyId = parts.length > 0 ? parts[parts.length - 1] : '';
+  const providerAndId = parts.length >= 2 ? `${parts[parts.length - 2]}|${parts[parts.length - 1]}` : '';
+
+  const subCandidates = new Set([normalizedSub, onlyId, providerAndId].filter(Boolean));
+
+  return allowedSubs.some((allowed) => {
+    const item = String(allowed || '').trim().toLowerCase();
+    if (!item) {
+      return false;
+    }
+
+    return subCandidates.has(item) || normalizedSub.endsWith(`|${item}`);
+  });
 }
 
 // Convierte strings CSV (a,b,c) a lista normalizada y sin vacios.

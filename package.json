@@ -5,6 +5,7 @@
   "description": "Personal CV website with production CMS backend",
   "license": "UNLICENSED",
   "dependencies": {
-    "@upstash/redis": "^1.37.0"
+    "@upstash/redis": "^1.37.0",
+    "mongodb": "^7.1.1"
   }
 }
