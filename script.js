@@ -2,6 +2,9 @@
 const STORAGE_KEY = 'cv-content-v1';
 const API_ENDPOINT = '/api/content';
 const GITHUB_STATS_CACHE_KEY = 'cv-github-stats-v1';
+const LOCALE_KEY = 'cv-ui-locale-v1';
+const TRANSLATION_CACHE_KEY = 'cv-translation-cache-v1';
+const SUPPORTED_LOCALES = ['es', 'en'];
 
 // Config runtime inyectada desde /api/config.
 const RUNTIME_CONFIG = window.__CV_CONFIG || {};
@@ -21,12 +24,174 @@ const AUTH0_SCOPE = 'openid profile email';
 const AUTH_INTENT_KEY = 'cv-admin-auth-intent';
 const { defaultContent, normalizeContent } = window.CV_CONTENT_MODEL || {};
 
+const UI_TEXT = {
+  es: {
+    title: 'CV Profesional | {name}',
+    description: 'CV profesional online: experiencia, logros, proyectos y contacto.',
+    nav: {
+      profile: 'Perfil',
+      experience: 'Experiencia',
+      certifications: 'Certificaciones',
+      projects: 'Proyectos',
+      github: 'GitHub',
+      contact: 'Contacto',
+    },
+    hero: {
+      contact: 'Contactar',
+      projects: 'Ver proyectos',
+      downloadCV: 'Descargar CV',
+      downloadATS: 'Descargar ATS',
+    },
+    panel: {
+      contactInfo: 'Informacion de contacto',
+    },
+    facts: {
+      location: 'Ubicacion',
+      email: 'Email',
+      phone: 'Telefono',
+      languages: 'Idiomas',
+    },
+    section: {
+      profileTag: 'Perfil profesional',
+      about: 'Sobre mi',
+      careerTag: 'Carrera',
+      experience: 'Experiencia',
+      trainingTag: 'Formacion validada',
+      certifications: 'Certificaciones',
+      workTag: 'Trabajo destacado',
+      projects: 'Proyectos',
+      githubTag: 'GitHub en vivo',
+      github: 'Estadisticas y actividad',
+      specialtiesTag: 'Especialidades',
+      skills: 'Habilidades',
+    },
+    footer: {
+      contact: 'Contacto',
+    },
+    empty: {
+      certificationsTitle: 'Certificaciones en actualización',
+      certificationsBody: 'Este bloque se actualiza dinamicamente desde el panel de administracion.',
+    },
+    certifications: {
+      complete: 'Completo',
+      inProgress: 'En progreso',
+      progress: 'Progreso',
+    },
+    githubStats: {
+      repos: 'Repos públicos',
+      stars: 'Estrellas',
+      followers: 'Seguidores',
+      updated: 'Ultima actualización',
+      featured: 'Repositorio destacado',
+      loadingTitle: 'Cargando actividad de GitHub',
+      loadingBody: 'La pagina consulta la API publica de GitHub para mostrar estadisticas y repositorios recientes.',
+      noDataTitle: 'No se pudo cargar la actividad',
+      noDataBody: 'Revisa la conexion a internet o el nombre de usuario configurado en api/config.js.',
+    },
+    admin: {
+      editButton: 'Editar contenido',
+      panelTitle: 'Panel de contenido',
+      logoutButton: 'Cerrar sesion',
+      closeButton: 'Cerrar',
+      saveButton: 'Guardar',
+      restoreButton: 'Restaurar',
+      downloadButton: 'Descargar JSON',
+      uploadLabel: 'Cargar JSON',
+      authTitle: 'Acceso de administrador',
+      authHelp: 'Inicia sesion con Auth0 para editar el contenido del CV.',
+      loginButton: 'Ingresar con Auth0',
+      cancelButton: 'Cancelar',
+    },
+  },
+  en: {
+    title: 'Professional CV | {name}',
+    description: 'Professional online CV: experience, achievements, projects, and contact.',
+    nav: {
+      profile: 'Profile',
+      experience: 'Experience',
+      certifications: 'Certifications',
+      projects: 'Projects',
+      github: 'GitHub',
+      contact: 'Contact',
+    },
+    hero: {
+      contact: 'Contact me',
+      projects: 'View projects',
+      downloadCV: 'Download CV',
+      downloadATS: 'Download ATS',
+    },
+    panel: {
+      contactInfo: 'Contact information',
+    },
+    facts: {
+      location: 'Location',
+      email: 'Email',
+      phone: 'Phone',
+      languages: 'Languages',
+    },
+    section: {
+      profileTag: 'Professional profile',
+      about: 'About me',
+      careerTag: 'Career',
+      experience: 'Experience',
+      trainingTag: 'Validated training',
+      certifications: 'Certifications',
+      workTag: 'Featured work',
+      projects: 'Projects',
+      githubTag: 'GitHub live',
+      github: 'Statistics and activity',
+      specialtiesTag: 'Specialties',
+      skills: 'Skills',
+    },
+    footer: {
+      contact: 'Contact',
+    },
+    empty: {
+      certificationsTitle: 'Certifications in progress',
+      certificationsBody: 'This section is updated dynamically from the administration panel.',
+    },
+    certifications: {
+      complete: 'Complete',
+      inProgress: 'In progress',
+      progress: 'Progress',
+    },
+    githubStats: {
+      repos: 'Public repos',
+      stars: 'Stars',
+      followers: 'Followers',
+      updated: 'Last updated',
+      featured: 'Featured repository',
+      loadingTitle: 'Loading GitHub activity',
+      loadingBody: 'This page queries the public GitHub API to show recent stats and repositories.',
+      noDataTitle: 'Could not load activity',
+      noDataBody: 'Check your internet connection or the username configured in api/config.js.',
+    },
+    admin: {
+      editButton: 'Edit content',
+      panelTitle: 'Content panel',
+      logoutButton: 'Logout',
+      closeButton: 'Close',
+      saveButton: 'Save',
+      restoreButton: 'Restore',
+      downloadButton: 'Download JSON',
+      uploadLabel: 'Load JSON',
+      authTitle: 'Administrator access',
+      authHelp: 'Log in with Auth0 to edit CV content.',
+      loginButton: 'Login with Auth0',
+      cancelButton: 'Cancel',
+    },
+  },
+};
+
 if (!defaultContent || !normalizeContent) {
   throw new Error('content-model.js must be loaded before script.js');
 }
 
 // Referencias a nodos de UI para renderizar contenido publico.
 const refs = {
+  html: document.documentElement,
+  metaDescription: document.querySelector('meta[name="description"]'),
+  localeButtons: Array.from(document.querySelectorAll('[data-locale]')),
   heroBadge: document.getElementById('hero-badge'),
   heroName: document.getElementById('hero-name'),
   heroRole: document.getElementById('hero-role'),
@@ -34,6 +199,7 @@ const refs = {
   factsList: document.getElementById('facts-list'),
   aboutText: document.getElementById('about-text'),
   experienceList: document.getElementById('experience-list'),
+  certificationsList: document.getElementById('certifications-list'),
   projectList: document.getElementById('project-list'),
   githubStats: document.getElementById('github-stats'),
   skillsList: document.getElementById('skills-list'),
@@ -43,7 +209,13 @@ const refs = {
   footerSocialLinks: document.getElementById('footer-social-links'),
   footerName: document.getElementById('footer-name'),
   year: document.getElementById('year'),
+  downloadCVNormalBtn: document.getElementById('download-cv-normal'),
+  downloadCVATSBtn: document.getElementById('download-cv-ats'),
+  pdfContainer: document.getElementById('pdf-container'),
 };
+
+let currentLocale = getInitialLocale();
+let translationRunId = 0;
 
 // Referencias al panel administrativo y modal de login.
 const admin = {
@@ -67,21 +239,29 @@ const auth0ClientPromise = createAuth0ClientInstance();
 
 // Estado en memoria del contenido actual del CV.
 let cvContent = loadCachedContent() || structuredClone(defaultContent);
+let translatedContent = structuredClone(cvContent);
 
 // Render inicial inmediato para reducir tiempo a primer contenido.
+applyStaticLocale(currentLocale, cvContent);
+bindLocaleActions();
 render(cvContent);
 populateForm(cvContent);
 initReveal();
 bindAdminActions();
+bindDownloadActions();
 void bootstrap();
 
 // Inicializacion asincronica: prioriza CMS remoto y luego auth/github.
 async function bootstrap() {
   cvContent = await loadContent();
+  applyStaticLocale(currentLocale, cvContent);
   render(cvContent);
   populateForm(cvContent);
   void loadAndRenderGithubStats();
   await initializeAuthFlow();
+  
+  // Traducir contenido si el idioma no es español
+  void localizeRenderedContent(cvContent);
 }
 
 // Obtiene contenido desde API serverless.
@@ -120,8 +300,275 @@ function loadCachedContent() {
   }
 }
 
+// Determina el idioma inicial segun preferencia guardada o navegador.
+function getInitialLocale() {
+  const savedLocale = String(localStorage.getItem(LOCALE_KEY) || '').trim().toLowerCase();
+  if (SUPPORTED_LOCALES.includes(savedLocale)) {
+    return savedLocale;
+  }
+
+  const browserLocale = String(navigator.language || navigator.languages?.[0] || 'es').toLowerCase();
+  return browserLocale.startsWith('en') ? 'en' : 'es';
+}
+
+// Aplica textos estaticos de la interfaz segun el idioma activo.
+function applyStaticLocale(locale, content) {
+  const localeText = UI_TEXT[locale] || UI_TEXT.es;
+  refs.html.setAttribute('lang', locale);
+  syncLocaleSwitcher(locale);
+
+  // Traducir todos los elementos con data-i18n
+  const elements = document.querySelectorAll('[data-i18n]');
+  elements.forEach((element) => {
+    const key = element.getAttribute('data-i18n');
+    const value = readLocaleValue(localeText, key);
+    
+    if (value !== undefined && typeof value === 'string') {
+      element.textContent = value;
+    }
+  });
+
+  if (refs.metaDescription) {
+    refs.metaDescription.setAttribute('content', localeText.description);
+  }
+
+  document.title = localeText.title.replace('{name}', content?.name || '');
+  localStorage.setItem(LOCALE_KEY, locale);
+}
+
+// Mantiene el estado visual del selector visible sincronizado.
+function syncLocaleSwitcher(locale) {
+  refs.localeButtons.forEach((button) => {
+    const isActive = button.dataset.locale === locale;
+    button.classList.toggle('active', isActive);
+    button.setAttribute('aria-pressed', String(isActive));
+  });
+}
+
+// Conecta los botones visibles del selector con el cambio de idioma.
+function bindLocaleActions() {
+  refs.localeButtons.forEach((button) => {
+    button.addEventListener('click', () => {
+      const nextLocale = button.dataset.locale;
+      if (!SUPPORTED_LOCALES.includes(nextLocale) || nextLocale === currentLocale) {
+        return;
+      }
+
+      currentLocale = nextLocale;
+      applyStaticLocale(currentLocale, cvContent);
+      render(cvContent);
+      populateForm(cvContent);
+      void loadAndRenderGithubStats();
+    });
+  });
+}
+
+// Lee una clave anidada del diccionario de textos.
+function readLocaleValue(source, key) {
+  if (!source || !key) return undefined;
+  
+  const parts = String(key || '').split('.');
+  let current = source;
+  
+  for (const part of parts) {
+    if (current && typeof current === 'object' && part in current) {
+      current = current[part];
+    } else {
+      return undefined;
+    }
+  }
+  
+  return current;
+}
+
+// Traduce el contenido dinamico renderizado cuando el idioma es distinto de espanol.
+async function localizeRenderedContent(content) {
+  if (currentLocale === 'es') {
+    return;
+  }
+
+  const runId = ++translationRunId;
+
+  try {
+    const translated = await translateContentForLocale(content, currentLocale);
+    if (runId !== translationRunId) {
+      return;
+    }
+
+    // Guardar contenido traducido para uso en descargas
+    translatedContent = translated;
+
+    refs.heroBadge.textContent = translated.badge;
+    refs.heroRole.textContent = translated.role;
+    refs.heroSummary.textContent = translated.summary;
+    refs.aboutText.textContent = translated.about;
+    refs.contactMessage.textContent = translated.contactMessage;
+
+    const experienceCards = refs.experienceList.querySelectorAll('article');
+    translated.experience.forEach((item, index) => {
+      const card = experienceCards[index];
+      if (!card) return;
+      const meta = card.querySelector('.meta');
+      const title = card.querySelector('h3');
+      const body = card.querySelector('.body-text');
+      if (meta) meta.textContent = item.period;
+      if (title) title.textContent = item.title;
+      if (body) body.textContent = item.description;
+    });
+
+    const certificationCards = refs.certificationsList.querySelectorAll('article');
+    translated.certifications.forEach((item, index) => {
+      const card = certificationCards[index];
+      if (!card) return;
+      const year = card.querySelector('.certification-year');
+      const title = card.querySelector('h3');
+      const body = card.querySelector('.certification-issuer');
+      if (year) year.textContent = item.year;
+      if (title) title.textContent = item.name;
+      if (body) body.textContent = item.issuer;
+    });
+
+    const projectCards = refs.projectList.querySelectorAll('article');
+    translated.projects.forEach((item, index) => {
+      const card = projectCards[index];
+      if (!card) return;
+      const title = card.querySelector('h3');
+      const body = card.querySelector('.body-text');
+      const stack = card.querySelector('.stack');
+      if (title) title.textContent = item.title;
+      if (body) body.textContent = item.description;
+      if (stack) stack.textContent = item.stack;
+    });
+
+    const skillItems = refs.skillsList.querySelectorAll('.skill-item');
+    translated.skills.forEach((skill, index) => {
+      const item = skillItems[index];
+      if (item) item.textContent = skill;
+    });
+  } catch (error) {
+    return;
+  }
+}
+
+// Traduce los textos editables del CV con cache local y fallback transparente.
+async function translateContentForLocale(content, locale) {
+  if (locale === 'es') {
+    return content;
+  }
+
+  const translated = structuredClone(content);
+  translated.badge = await translateText(content.badge, locale);
+  translated.role = await translateText(content.role, locale);
+  translated.summary = await translateText(content.summary, locale);
+  translated.about = await translateText(content.about, locale);
+  translated.contactMessage = await translateText(content.contactMessage, locale);
+
+  translated.experience = await Promise.all(
+    content.experience.map(async (item) => ({
+      period: await translateText(item.period, locale),
+      title: await translateText(item.title, locale),
+      description: await translateText(item.description, locale),
+    }))
+  );
+
+  translated.certifications = await Promise.all(
+    content.certifications.map(async (item) => ({
+      name: await translateText(item.name, locale),
+      issuer: await translateText(item.issuer, locale),
+      year: item.year,
+      percentage: item.percentage,
+    }))
+  );
+
+  translated.projects = await Promise.all(
+    content.projects.map(async (item) => ({
+      title: await translateText(item.title, locale),
+      description: await translateText(item.description, locale),
+      stack: await translateText(item.stack, locale),
+    }))
+  );
+
+  translated.skills = await Promise.all(
+    content.skills.map((skill) => translateText(skill, locale))
+  );
+
+  return translated;
+}
+
+// Traduce una cadena con cache persistente y servicio publico de Google Translate.
+async function translateText(text, locale) {
+  const sourceText = String(text || '').trim();
+  if (!sourceText || locale === 'es') {
+    return sourceText;
+  }
+
+  const cacheKey = `${locale}::${sourceText}`;
+  const cached = readTranslationCache(cacheKey);
+  if (cached) {
+    return cached;
+  }
+
+  try {
+    const response = await fetch(
+      `https://translate.googleapis.com/translate_a/single?client=gtx&sl=es&tl=${encodeURIComponent(locale)}&dt=t&q=${encodeURIComponent(sourceText)}`
+    );
+
+    if (!response.ok) {
+      throw new Error('Translation request failed');
+    }
+
+    const data = await response.json();
+    const translated = Array.isArray(data)
+      ? data[0].map((segment) => segment[0]).join('')
+      : sourceText;
+
+    writeTranslationCache(cacheKey, translated);
+    return translated;
+  } catch (error) {
+    return sourceText;
+  }
+}
+
+// Cache simple para traducciones repetidas.
+function readTranslationCache(key) {
+  try {
+    const raw = localStorage.getItem(TRANSLATION_CACHE_KEY);
+    if (!raw) {
+      return '';
+    }
+
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed[key] === 'string' ? parsed[key] : '';
+  } catch (error) {
+    return '';
+  }
+}
+
+// Guarda traducciones para evitar repetir llamadas externas.
+function writeTranslationCache(key, value) {
+  try {
+    const raw = localStorage.getItem(TRANSLATION_CACHE_KEY);
+    const parsed = raw ? JSON.parse(raw) : {};
+    parsed[key] = value;
+    localStorage.setItem(TRANSLATION_CACHE_KEY, JSON.stringify(parsed));
+  } catch (error) {
+    return;
+  }
+}
+
+// Normaliza porcentaje para las barras de habilidad.
+function clampPercentage(value) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) {
+    return 0;
+  }
+
+  return Math.max(0, Math.min(100, Math.round(numeric)));
+}
+
 // Renderiza todas las secciones visibles del sitio a partir del modelo de contenido.
 function render(content) {
+  const localeText = UI_TEXT[currentLocale] || UI_TEXT.es;
   refs.heroBadge.textContent = content.badge;
   refs.heroName.textContent = content.name;
   refs.heroRole.textContent = content.role;
@@ -132,7 +579,10 @@ function render(content) {
   refs.contactEmail.href = `mailto:${content.email}`;
   refs.footerName.textContent = content.name;
   refs.year.textContent = String(new Date().getFullYear());
-  document.title = `CV Profesional | ${content.name}`;
+  document.title = localeText.title.replace('{name}', content.name);
+  if (refs.metaDescription) {
+    refs.metaDescription.setAttribute('content', localeText.description);
+  }
 
   const socialItems = [
     { label: 'LinkedIn', url: content.social.linkedin },
@@ -149,15 +599,41 @@ function render(content) {
   });
 
   refs.factsList.innerHTML = '';
-  [
-    `Ubicacion: ${content.location}`,
-    `Email: ${content.email}`,
-    `Telefono: ${content.phone}`,
-    `Idiomas: ${content.languages}`,
-  ].forEach((item) => {
-    const li = document.createElement('li');
-    li.textContent = item;
-    refs.factsList.appendChild(li);
+  const personalFacts = [
+    { label: localeText.facts.location, value: content.location, href: '' },
+    { label: localeText.facts.email, value: content.email, href: `mailto:${content.email}` },
+    { label: localeText.facts.phone, value: formatPhoneDisplay(content.phone), href: buildPhoneHref(content.phone) },
+    { label: localeText.facts.languages, value: content.languages, href: '' },
+  ];
+
+  personalFacts.forEach((item) => {
+    const row = document.createElement('div');
+    row.className = 'fact-item';
+
+    const term = document.createElement('dt');
+    term.className = 'fact-label';
+    term.textContent = item.label;
+
+    const description = document.createElement('dd');
+    description.className = 'fact-value';
+
+    if (item.href) {
+      const link = document.createElement('a');
+      link.className = 'fact-link';
+      link.href = item.href;
+      link.textContent = item.value;
+      if (item.href.startsWith('http')) {
+        link.target = '_blank';
+        link.rel = 'noreferrer noopener';
+      }
+      description.appendChild(link);
+    } else {
+      description.textContent = item.value;
+    }
+
+    row.appendChild(term);
+    row.appendChild(description);
+    refs.factsList.appendChild(row);
   });
 
   refs.experienceList.innerHTML = '';
@@ -170,6 +646,43 @@ function render(content) {
       <p class="body-text">${escapeHTML(item.description)}</p>
     `;
     refs.experienceList.appendChild(article);
+  });
+
+  refs.certificationsList.innerHTML = '';
+  if (!content.certifications.length) {
+    const emptyCard = document.createElement('article');
+    emptyCard.className = 'card certification-card reveal';
+    emptyCard.innerHTML = `
+      <h3>${escapeHTML(localeText.empty.certificationsTitle)}</h3>
+      <p class="body-text certification-issuer">${escapeHTML(localeText.empty.certificationsBody)}</p>
+    `;
+    refs.certificationsList.appendChild(emptyCard);
+  }
+
+  content.certifications.forEach((item) => {
+    const percentage = clampPercentage(item.percentage ?? 100);
+    const isComplete = percentage >= 100;
+    const certificationText = UI_TEXT[currentLocale] || UI_TEXT.es;
+    const article = document.createElement('article');
+    article.className = 'card certification-card reveal';
+    article.innerHTML = `
+      <div class="certification-head">
+        <div>
+          <div class="certification-year">${escapeHTML(item.year)}</div>
+          <h3>${escapeHTML(item.name)}</h3>
+        </div>
+        <span class="certification-percent">${percentage}%</span>
+      </div>
+      <div class="certification-track" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${percentage}" aria-label="${escapeHTML(item.name)} ${percentage}%">
+        <span class="certification-fill ${isComplete ? 'is-complete' : ''}" style="width: ${percentage}%"></span>
+      </div>
+      <div class="certification-foot">
+        <span class="certification-status ${isComplete ? 'is-complete' : 'is-progress'}">${escapeHTML(isComplete ? certificationText.certifications.complete : certificationText.certifications.inProgress)}</span>
+        <span class="certification-progress-label">${escapeHTML(certificationText.certifications.progress)}</span>
+      </div>
+      <p class="body-text certification-issuer">${escapeHTML(item.issuer)}</p>
+    `;
+    refs.certificationsList.appendChild(article);
   });
 
   refs.projectList.innerHTML = '';
@@ -197,6 +710,7 @@ function render(content) {
   });
 
   initReveal();
+  void localizeRenderedContent(content);
 }
 
 // Completa el formulario admin con el estado actual del contenido.
@@ -216,12 +730,108 @@ function populateForm(content) {
   admin.form.elements.twitter.value = content.social.twitter;
   admin.form.elements.contactMessage.value = content.contactMessage;
   admin.form.elements.skills.value = content.skills.join(', ');
+  admin.form.elements.certifications.value = content.certifications
+    .map((item) => `${item.name} | ${item.issuer} | ${item.year} | ${item.percentage ?? 100}`)
+    .join('\n');
   admin.form.elements.experience.value = content.experience
     .map((item) => `${item.period} | ${item.title} | ${item.description}`)
     .join('\n');
   admin.form.elements.projects.value = content.projects
     .map((item) => `${item.title} | ${item.description} | ${item.stack}`)
     .join('\n');
+}
+
+// Genera HTML para CV en formato visual con estilos
+function generateStyledCVHTML(content, labels = {}) {
+  const defaultLabels = {
+    aboutTitle: 'Sobre mí',
+    experienceTitle: 'Experiencia',
+    certificationsTitle: 'Certificaciones',
+    projectsTitle: 'Proyectos',
+    skillsTitle: 'Habilidades',
+    contactTitle: 'Contacto',
+    location: 'Ubicación',
+    email: 'Email',
+    phone: 'Teléfono',
+    languages: 'Idiomas',
+    stackLabel: 'Stack',
+  };
+  const finalLabels = { ...defaultLabels, ...labels };
+  const skills = content.skills.join(', ');
+  const certificationsHTML = content.certifications
+    .map((cert) => `<article class="pdf-item avoid-break"><strong>${escapeHTML(cert.name)}</strong><span>${escapeHTML(cert.issuer)} · ${escapeHTML(cert.year)}</span></article>`)
+    .join('');
+  const experienceHTML = content.experience
+    .map((exp) => `<article class="pdf-item avoid-break"><strong>${escapeHTML(exp.title)}</strong><span>${escapeHTML(exp.period)}</span><p>${escapeHTML(exp.description)}</p></article>`)
+    .join('');
+  const projectsHTML = content.projects
+    .map((proj) => `<article class="pdf-item avoid-break"><strong>${escapeHTML(proj.title)}</strong><span>${finalLabels.stackLabel}: ${escapeHTML(proj.stack)}</span><p>${escapeHTML(proj.description)}</p></article>`)
+    .join('');
+
+  return `<!DOCTYPE html><html><head><meta charset="UTF-8"/><title>${escapeHTML(content.name)} - CV</title><style>*{box-sizing:border-box}html,body{margin:0;padding:0}body{font-family:Arial,sans-serif;color:#243042;background:#fff;font-size:10.5px;line-height:1.28;padding:12mm 10mm 10mm}.page{max-width:100%;margin:0 auto}.header{display:grid;grid-template-columns:1.4fr 1fr;gap:8px 16px;align-items:start;padding-bottom:8px;border-bottom:1px solid #d5deea;margin-bottom:10px;page-break-inside:avoid}h1{font-size:20px;line-height:1.05;margin:0 0 4px;font-family:Arial,sans-serif}.role{font-size:11px;font-weight:700;color:#1067d8;margin:0 0 6px}.badge{display:inline-block;background:#e8f0fe;color:#1067d8;border-radius:999px;padding:3px 8px;font-size:9px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;margin-bottom:6px}.summary{margin:0;color:#516178;max-width:62ch}.contact-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px 10px;font-size:9.5px;color:#516178}.contact-chip{display:flex;gap:4px;min-width:0}.contact-chip strong{color:#243042;white-space:nowrap}.main-grid{display:grid;grid-template-columns:1fr 1.1fr;gap:8px 14px;align-items:start}.section{background:#fff;border:1px solid #dfe7f1;border-radius:10px;padding:8px 9px;margin:0 0 8px;page-break-inside:avoid}.section h2{font-size:11px;line-height:1.1;margin:0 0 6px;padding:0 0 5px;border-bottom:1px solid #dfe7f1;text-transform:uppercase;letter-spacing:.04em;color:#1067d8;page-break-after:avoid}.section p{margin:0}.section .muted{color:#516178}.stack-inline{color:#516178;font-size:9.5px}.skill-list{display:flex;flex-wrap:wrap;gap:4px}.skill-pill{border:1px solid #dfe7f1;border-radius:999px;padding:3px 7px;font-size:9px;line-height:1.1;background:#f8fbff;color:#243042}.pdf-list{display:grid;gap:6px}.pdf-item{display:grid;gap:1px;padding-bottom:6px;border-bottom:1px dashed #e2e8f2}.pdf-item:last-child{padding-bottom:0;border-bottom:0}.pdf-item strong{font-size:10px;color:#243042}.pdf-item span,.pdf-item p{font-size:9.3px;color:#516178}.pdf-item p{line-height:1.22}.avoid-break{break-inside:avoid;page-break-inside:avoid}.compact-contact p{margin:0}.compact-links a{color:#1067d8;text-decoration:none}@media print{body{padding:7mm 7mm 6mm}.section,.header,.avoid-break{break-inside:avoid;page-break-inside:avoid}.page{page-break-after:avoid}}</style></head><body><div class="page"><div class="header avoid-break"><div><div class="badge">${escapeHTML(content.badge)}</div><h1>${escapeHTML(content.name)}</h1><p class="role">${escapeHTML(content.role)}</p><p class="summary">${escapeHTML(content.summary)}</p></div><div class="compact-contact contact-grid"><div class="contact-chip"><strong>${finalLabels.location}:</strong><span>${escapeHTML(content.location)}</span></div><div class="contact-chip"><strong>${finalLabels.email}:</strong><span><a href="mailto:${escapeHTML(content.email)}">${escapeHTML(content.email)}</a></span></div><div class="contact-chip"><strong>${finalLabels.phone}:</strong><span>${escapeHTML(content.phone)}</span></div><div class="contact-chip"><strong>${finalLabels.languages}:</strong><span>${escapeHTML(content.languages)}</span></div></div></div><div class="main-grid"><div><section class="section avoid-break"><h2>${finalLabels.aboutTitle}</h2><p>${escapeHTML(content.about)}</p></section><section class="section avoid-break"><h2>${finalLabels.skillsTitle}</h2><div class="skill-list">${content.skills.map((skill) => `<span class="skill-pill">${escapeHTML(skill)}</span>`).join('')}</div></section><section class="section avoid-break"><h2>${finalLabels.contactTitle}</h2><p>${escapeHTML(content.contactMessage)}</p><p class="compact-links">${content.social.linkedin ? `<a href="${escapeHTML(content.social.linkedin)}" target="_blank" rel="noreferrer noopener">LinkedIn</a> · ` : ''}${content.social.github ? `<a href="${escapeHTML(content.social.github)}" target="_blank" rel="noreferrer noopener">GitHub</a> · ` : ''}${content.social.portfolio ? `<a href="${escapeHTML(content.social.portfolio)}" target="_blank" rel="noreferrer noopener">Portfolio</a>` : ''}</p></section></div><div><section class="section avoid-break"><h2>${finalLabels.experienceTitle}</h2><div class="pdf-list">${experienceHTML}</div></section><section class="section avoid-break"><h2>${finalLabels.certificationsTitle}</h2><div class="pdf-list">${certificationsHTML}</div></section><section class="section avoid-break"><h2>${finalLabels.projectsTitle}</h2><div class="pdf-list">${projectsHTML}</div></section></div></div></div></body></html>`;
+}
+
+function generateATSCVHTML(content, labels = {}) {
+  const defaultLabels = {
+    contactInfo: 'CONTACT INFORMATION', location: 'Location', email: 'Email', phone: 'Phone',
+    languages: 'Languages', summary: 'SUMMARY', about: 'ABOUT', experience: 'EXPERIENCE',
+    certifications: 'CERTIFICATIONS', projects: 'PROJECTS', skills: 'SKILLS',
+    contactMessage: 'CONTACT MESSAGE', socialProfiles: 'SOCIAL PROFILES', stackLabel: 'Stack',
+  };
+  const finalLabels = { ...defaultLabels, ...labels };
+  const skills = content.skills.join(', ');
+  const certifications = content.certifications.map((cert) => `${cert.name} - ${cert.issuer} (${cert.year})`).join('\n');
+  const experience = content.experience.map((exp) => `${exp.title} (${exp.period})\n${exp.description}`).join('\n\n');
+  const projects = content.projects.map((proj) => `${proj.title}\n${proj.description}\n${finalLabels.stackLabel}: ${proj.stack}`).join('\n\n');
+  return `<!DOCTYPE html><html><head><meta charset="UTF-8"/><title>${escapeHTML(content.name)} - CV ATS</title><style>html,body{margin:0;padding:0}body{font-family:'Courier New',monospace;white-space:pre-wrap;word-wrap:break-word;font-size:9.5px;line-height:1.22;color:#111;padding:8mm 9mm}h1,h2,p{margin:0}h1{font-size:16px;line-height:1.05;margin-bottom:2px}h2{font-size:10px;margin:8px 0 4px;text-transform:uppercase;letter-spacing:.04em}section{page-break-inside:avoid;margin-bottom:4px} .block{page-break-inside:avoid} .spacer{height:4px} .label{font-weight:700}</style></head><body><h1>${escapeHTML(content.name)}</h1><div class="block">${escapeHTML(content.role)} | ${escapeHTML(content.badge)}</div><div class="spacer"></div><section><h2>${finalLabels.contactInfo}</h2><div class="block"><span class="label">${finalLabels.location}:</span> ${escapeHTML(content.location)} | <span class="label">${finalLabels.email}:</span> ${escapeHTML(content.email)} | <span class="label">${finalLabels.phone}:</span> ${escapeHTML(content.phone)} | <span class="label">${finalLabels.languages}:</span> ${escapeHTML(content.languages)}</div></section><section><h2>${finalLabels.summary}</h2><div class="block">${escapeHTML(content.summary)}</div></section><section><h2>${finalLabels.about}</h2><div class="block">${escapeHTML(content.about)}</div></section><section><h2>${finalLabels.experience}</h2><div class="block">${experience}</div></section><section><h2>${finalLabels.certifications}</h2><div class="block">${certifications}</div></section><section><h2>${finalLabels.projects}</h2><div class="block">${projects}</div></section><section><h2>${finalLabels.skills}</h2><div class="block">${skills}</div></section><section><h2>${finalLabels.contactMessage}</h2><div class="block">${escapeHTML(content.contactMessage)}</div></section><section><h2>${finalLabels.socialProfiles}</h2><div class="block">LinkedIn: ${content.social.linkedin || 'N/A'} | GitHub: ${content.social.github || 'N/A'} | Portfolio: ${content.social.portfolio || 'N/A'}</div></section></body></html>`;
+}
+
+async function downloadCVPDF(format) {
+  const content = currentLocale !== 'es' ? translatedContent : cvContent;
+  const pdfLabels = currentLocale === 'es' ? {aboutTitle:'Sobre mí',experienceTitle:'Experiencia',certificationsTitle:'Certificaciones',projectsTitle:'Proyectos',skillsTitle:'Habilidades',contactTitle:'Contacto',location:'Ubicación',email:'Email',phone:'Teléfono',languages:'Idiomas',stackLabel:'Stack',contactInfo:'CONTACT INFORMATION',summary:'SUMMARY',about:'ABOUT',experience:'EXPERIENCE',certifications:'CERTIFICATIONS',projects:'PROJECTS',skills:'SKILLS',contactMessage:'CONTACT MESSAGE',socialProfiles:'SOCIAL PROFILES'} : {aboutTitle:'About me',experienceTitle:'Experience',certificationsTitle:'Certifications',projectsTitle:'Projects',skillsTitle:'Skills',contactTitle:'Contact',location:'Location',email:'Email',phone:'Phone',languages:'Languages',stackLabel:'Stack',contactInfo:'CONTACT INFORMATION',summary:'SUMMARY',about:'ABOUT',experience:'EXPERIENCE',certifications:'CERTIFICATIONS',projects:'PROJECTS',skills:'SKILLS',contactMessage:'CONTACT MESSAGE',socialProfiles:'SOCIAL PROFILES'};
+  const html = format === 'ats' ? generateATSCVHTML(content, pdfLabels) : generateStyledCVHTML(content, pdfLabels);
+  
+  const element = document.createElement('div');
+  element.innerHTML = html;
+  refs.pdfContainer.appendChild(element);
+
+  try {
+    const localeSuffix = currentLocale === 'en' ? 'EN' : 'ES';
+    const filename = format === 'ats' 
+      ? `${content.name.replace(/\s+/g, '_')}_CV_ATS_${localeSuffix}.pdf`
+      : `${content.name.replace(/\s+/g, '_')}_CV_${localeSuffix}.pdf`;
+
+    const opt = {
+      margin: [6, 6, 6, 6],
+      filename: filename,
+      image: { type: 'jpeg', quality: 0.98 },
+      html2canvas: { scale: 1.6, useCORS: true },
+      jsPDF: { orientation: 'portrait', unit: 'mm', format: 'a4' },
+      pagebreak: { mode: ['css', 'legacy'], avoid: ['.avoid-break', '.section'] },
+    };
+
+    await html2pdf().set(opt).from(element).save();
+  } catch (error) {
+    console.error('Error downloading PDF:', error);
+    alert('Could not download CV. Please try again.');
+  } finally {
+    refs.pdfContainer.removeChild(element);
+  }
+}
+
+// Conecta listeners para botones de descarga de CV
+function bindDownloadActions() {
+  if (refs.downloadCVNormalBtn) {
+    refs.downloadCVNormalBtn.addEventListener('click', () => {
+      downloadCVPDF('normal');
+    });
+  }
+
+  if (refs.downloadCVATSBtn) {
+    refs.downloadCVATSBtn.addEventListener('click', () => {
+      downloadCVPDF('ats');
+    });
+  }
 }
 
 // Conecta listeners de UI para acciones administrativas y utilidades JSON.
@@ -297,7 +907,7 @@ function bindAdminActions() {
 async function saveSubmittedContent() {
   const next = collectFormData();
   if (!next) {
-    alert('Revisa el formato de Experiencia y Proyectos. Usa: campo | campo | campo');
+    alert('Revisa el formato de Certificaciones, Experiencia y Proyectos. Usa: campo | campo | campo');
     return;
   }
 
@@ -518,10 +1128,11 @@ async function logoutAuth0() {
 function collectFormData() {
   const form = admin.form.elements;
 
+  const certifications = parsePipeLines(form.certifications.value, ['name', 'issuer', 'year', 'percentage']);
   const experience = parsePipeLines(form.experience.value, ['period', 'title', 'description']);
   const projects = parsePipeLines(form.projects.value, ['title', 'description', 'stack']);
 
-  if (!experience || !projects) {
+  if (!certifications || !experience || !projects) {
     return null;
   }
 
@@ -546,6 +1157,7 @@ function collectFormData() {
       .split(',')
       .map((item) => item.trim())
       .filter(Boolean),
+    certifications,
     experience,
     projects,
   };
@@ -569,12 +1181,13 @@ function renderGithubStatsSkeleton() {
   }
 
   refs.githubStats.innerHTML = '';
+  const localeText = UI_TEXT[currentLocale] || UI_TEXT.es;
 
   const placeholders = [
-    ['Repos públicos', '—'],
-    ['Estrellas', '—'],
-    ['Seguidores', '—'],
-    ['Ultima actualización', '—'],
+    [localeText.githubStats.repos, '—'],
+    [localeText.githubStats.stars, '—'],
+    [localeText.githubStats.followers, '—'],
+    [localeText.githubStats.updated, '—'],
   ];
 
   placeholders.forEach(([label, value]) => {
@@ -586,13 +1199,13 @@ function renderGithubStatsSkeleton() {
   featured.innerHTML = `
     <div class="github-featured-head">
       <div>
-        <p class="meta">Repositorio destacado</p>
-        <h3 class="github-featured-title">Cargando actividad de GitHub</h3>
+        <p class="meta">${escapeHTML(localeText.githubStats.featured)}</p>
+        <h3 class="github-featured-title">${escapeHTML(localeText.githubStats.loadingTitle)}</h3>
       </div>
     </div>
-    <p class="github-featured-body">La pagina consulta la API publica de GitHub para mostrar estadisticas y repositorios recientes.</p>
+    <p class="github-featured-body">${escapeHTML(localeText.githubStats.loadingBody)}</p>
     <div class="github-featured-meta">
-      <span class="github-pill">Auto-refresh desde GitHub</span>
+      <span class="github-pill">${currentLocale === 'en' ? 'Auto-refresh from GitHub' : 'Auto-refresh desde GitHub'}</span>
     </div>
   `;
   refs.githubStats.appendChild(featured);
@@ -617,7 +1230,7 @@ async function loadAndRenderGithubStats() {
 
   if (!GITHUB_USERNAME) {
     refs.githubStats.innerHTML = '';
-    refs.githubStats.appendChild(createStatCard('GitHub', 'Configurar usuario'));
+    refs.githubStats.appendChild(createStatCard('GitHub', currentLocale === 'en' ? 'Configure username' : 'Configurar usuario'));
     return;
   }
 
@@ -636,29 +1249,30 @@ function renderGithubStats(stats, error) {
   }
 
   refs.githubStats.innerHTML = '';
+  const localeText = UI_TEXT[currentLocale] || UI_TEXT.es;
 
   if (!stats) {
-    refs.githubStats.appendChild(createStatCard('GitHub', error ? 'No disponible' : 'Sin datos'));
+    refs.githubStats.appendChild(createStatCard('GitHub', error ? (currentLocale === 'en' ? 'Unavailable' : 'No disponible') : (currentLocale === 'en' ? 'No data' : 'Sin datos')));
     const fallback = document.createElement('article');
     fallback.className = 'github-featured';
     fallback.innerHTML = `
       <div class="github-featured-head">
         <div>
-          <p class="meta">Repositorio destacado</p>
-          <h3 class="github-featured-title">No se pudo cargar la actividad</h3>
+          <p class="meta">${escapeHTML(localeText.githubStats.featured)}</p>
+          <h3 class="github-featured-title">${escapeHTML(localeText.githubStats.noDataTitle)}</h3>
         </div>
       </div>
-      <p class="github-featured-body">Revisa la conexion a internet o el nombre de usuario configurado en <code>api/config.js</code>.</p>
+      <p class="github-featured-body">${escapeHTML(localeText.githubStats.noDataBody)}</p>
     `;
     refs.githubStats.appendChild(fallback);
     return;
   }
 
   [
-    ['Repos públicos', String(stats.publicRepos)],
-    ['Estrellas', String(stats.stars)],
-    ['Seguidores', String(stats.followers)],
-    ['Ultima actualización', stats.lastUpdateLabel],
+    [localeText.githubStats.repos, String(stats.publicRepos)],
+    [localeText.githubStats.stars, String(stats.stars)],
+    [localeText.githubStats.followers, String(stats.followers)],
+    [localeText.githubStats.updated, stats.lastUpdateLabel],
   ].forEach(([label, value]) => {
     refs.githubStats.appendChild(createStatCard(label, value));
   });
@@ -668,7 +1282,7 @@ function renderGithubStats(stats, error) {
   featured.innerHTML = `
     <div class="github-featured-head">
       <div>
-        <p class="meta">Repositorio destacado</p>
+        <p class="meta">${escapeHTML(localeText.githubStats.featured)}</p>
         <h3 class="github-featured-title">${escapeHTML(stats.featuredRepo.name)}</h3>
       </div>
       <a class="github-featured-link" href="${escapeHTML(stats.featuredRepo.url)}" target="_blank" rel="noreferrer noopener">Abrir</a>
@@ -840,6 +1454,17 @@ function parsePipeLines(text, keys) {
   }
 
   return result;
+}
+
+// Convierte telefono libre en href tel compatible con moviles.
+function buildPhoneHref(phone) {
+  const sanitized = String(phone || '').replace(/[^\d+]/g, '');
+  return sanitized ? `tel:${sanitized}` : '';
+}
+
+// Mantiene visual del telefono mientras se sanitiza el enlace.
+function formatPhoneDisplay(phone) {
+  return String(phone || '').trim();
 }
 
 // Observer de interseccion para animaciones reveal por scroll.

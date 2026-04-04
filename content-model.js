@@ -41,6 +41,7 @@
       'Responsive Design',
       'UI Systems',
     ],
+    certifications: [],
     experience: [
       {
         period: '2024 - Actualidad',
@@ -105,6 +106,17 @@
       ? source.skills.map((item) => cleanString(item)).filter(Boolean)
       : [...defaultContent.skills];
 
+    merged.certifications = Array.isArray(source.certifications)
+      ? source.certifications
+          .map((item) => ({
+            name: cleanString(item?.name),
+            issuer: cleanString(item?.issuer),
+            year: cleanString(item?.year),
+            percentage: clampPercentage(item?.percentage ?? 100),
+          }))
+          .filter((item) => item.name && item.issuer && item.year)
+      : [...defaultContent.certifications];
+
     merged.experience = Array.isArray(source.experience)
       ? source.experience
           .map((item) => ({
@@ -132,6 +144,16 @@
   function cleanString(value, fallback = '') {
     const text = String(value ?? '').trim();
     return text.length > 0 ? text : fallback;
+  }
+
+  // Limita porcentaje a un rango utilizable en UI.
+  function clampPercentage(value) {
+    const numeric = Number(value);
+    if (!Number.isFinite(numeric)) {
+      return 0;
+    }
+
+    return Math.max(0, Math.min(100, Math.round(numeric)));
   }
 
   // Verifica objetos "plain" para evitar arrays u otros tipos no esperados.

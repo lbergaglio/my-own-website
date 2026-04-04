@@ -24,15 +24,22 @@
     <!-- Navegacion principal -->
     <header class="topbar wrap">
       <a class="brand" href="#inicio">PortfolioCV</a>
-      <nav>
-        <ul class="menu">
-          <li><a href="#sobre-mi">Perfil</a></li>
-          <li><a href="#experiencia">Experiencia</a></li>
-          <li><a href="#proyectos">Proyectos</a></li>
-          <li><a href="#github">GitHub</a></li>
-          <li><a href="#contacto">Contacto</a></li>
-        </ul>
-      </nav>
+      <div class="topbar-actions">
+        <nav>
+          <ul class="menu">
+            <li><a data-i18n="nav.profile" href="#sobre-mi">Perfil</a></li>
+            <li><a data-i18n="nav.experience" href="#experiencia">Experiencia</a></li>
+            <li><a data-i18n="nav.certifications" href="#certificaciones">Certificaciones</a></li>
+            <li><a data-i18n="nav.projects" href="#proyectos">Proyectos</a></li>
+            <li><a data-i18n="nav.github" href="#github">GitHub</a></li>
+            <li><a data-i18n="nav.contact" href="#contacto">Contacto</a></li>
+          </ul>
+        </nav>
+        <div class="locale-switcher" role="group" aria-label="Selector de idioma">
+          <button id="locale-es" class="locale-button" type="button" data-locale="es" aria-pressed="false">ES</button>
+          <button id="locale-en" class="locale-button" type="button" data-locale="en" aria-pressed="false">EN</button>
+        </div>
+      </div>
     </header>
 
     <!-- Contenido principal del CV -->
@@ -47,22 +54,26 @@
           </h1>
           <p id="hero-summary" class="lead"></p>
           <div class="hero-actions">
-            <a id="hero-contact-btn" class="btn btn-primary" href="#contacto">Contactar</a>
-            <a class="btn btn-ghost" href="#proyectos">Ver proyectos</a>
+            <a id="hero-contact-btn" class="btn btn-primary" data-i18n="hero.contact" href="#contacto">Contactar</a>
+            <div class="hero-downloads">
+              <button id="download-cv-normal" class="btn btn-ghost" type="button" data-i18n="hero.downloadCV">Descargar CV</button>
+              <button id="download-cv-ats" class="btn btn-ghost" type="button" data-i18n="hero.downloadATS">Descargar ATS</button>
+            </div>
+            <a class="btn btn-ghost" data-i18n="hero.projects" href="#proyectos">Ver proyectos</a>
           </div>
           <div id="social-links" class="social-links"></div>
         </div>
         <aside class="hero-panel card">
-          <p class="panel-kicker">Datos clave</p>
-          <ul id="facts-list" class="facts-list"></ul>
+          <p class="panel-kicker" data-i18n="panel.contactInfo">Informacion de contacto</p>
+          <dl id="facts-list" class="facts-list"></dl>
         </aside>
       </section>
 
       <!-- Resumen profesional -->
       <section id="sobre-mi" class="section reveal">
         <div class="section-head">
-          <p class="section-tag">Perfil profesional</p>
-          <h2>Sobre mi</h2>
+          <p class="section-tag" data-i18n="section.profileTag">Perfil profesional</p>
+          <h2 data-i18n="section.about">Sobre mi</h2>
         </div>
         <article class="card">
           <p id="about-text" class="body-text"></p>
@@ -72,17 +83,26 @@
       <!-- Trayectoria laboral -->
       <section id="experiencia" class="section reveal">
         <div class="section-head">
-          <p class="section-tag">Carrera</p>
-          <h2>Experiencia</h2>
+          <p class="section-tag" data-i18n="section.careerTag">Carrera</p>
+          <h2 data-i18n="section.experience">Experiencia</h2>
         </div>
         <div id="experience-list" class="experience-grid"></div>
+      </section>
+
+      <!-- Certificaciones profesionales -->
+      <section id="certificaciones" class="section reveal">
+        <div class="section-head">
+          <p class="section-tag" data-i18n="section.trainingTag">Formacion validada</p>
+          <h2 data-i18n="section.certifications">Certificaciones</h2>
+        </div>
+        <div id="certifications-list" class="certification-grid"></div>
       </section>
 
       <!-- Proyectos destacados -->
       <section id="proyectos" class="section reveal">
         <div class="section-head">
-          <p class="section-tag">Trabajo destacado</p>
-          <h2>Proyectos</h2>
+          <p class="section-tag" data-i18n="section.workTag">Trabajo destacado</p>
+          <h2 data-i18n="section.projects">Proyectos</h2>
         </div>
         <div id="project-list" class="project-grid"></div>
       </section>
@@ -90,8 +110,8 @@
       <!-- Tarjetas con datos en vivo de GitHub -->
       <section id="github" class="section reveal">
         <div class="section-head">
-          <p class="section-tag">GitHub en vivo</p>
-          <h2>Estadisticas y actividad</h2>
+          <p class="section-tag" data-i18n="section.githubTag">GitHub en vivo</p>
+          <h2 data-i18n="section.github">Estadisticas y actividad</h2>
         </div>
         <div id="github-stats" class="github-stats-grid"></div>
       </section>
@@ -99,8 +119,8 @@
       <!-- Nube de habilidades -->
       <section id="habilidades" class="section reveal">
         <div class="section-head">
-          <p class="section-tag">Especialidades</p>
-          <h2>Habilidades</h2>
+          <p class="section-tag" data-i18n="section.specialtiesTag">Especialidades</p>
+          <h2 data-i18n="section.skills">Habilidades</h2>
         </div>
         <div id="skills-list" class="skill-cloud"></div>
       </section>
@@ -108,26 +128,29 @@
 
     <!-- Pie con contacto -->
     <footer id="contacto" class="footer wrap reveal">
-      <h2>Contacto</h2>
+      <h2 data-i18n="footer.contact">Contacto</h2>
       <p id="contact-message" class="body-text"></p>
       <a id="contact-email" class="mail-link" href="#"></a>
       <div id="footer-social-links" class="social-links social-links-footer"></div>
       <p class="copyright">(c) <span id="year"></span> <span id="footer-name"></span></p>
     </footer>
 
+    <!-- Contenedor oculto para generar CV en memoria -->
+    <div id="pdf-container" style="display: none; position: absolute; left: -9999px;"></div>
+
     <!-- Boton flotante para abrir el panel de administracion -->
-    <button id="open-admin" class="admin-trigger" type="button">Editar contenido</button>
+    <button id="open-admin" class="admin-trigger" type="button" data-i18n="admin.editButton">Editar contenido</button>
 
     <!-- Modal de autenticacion Auth0 -->
     <div id="auth-modal" class="auth-modal" aria-hidden="true">
       <div class="auth-card">
-        <h3>Acceso de administrador</h3>
-        <p class="auth-help">Inicia sesion con Auth0 para editar el contenido del CV.</p>
+        <h3 data-i18n="admin.authTitle">Acceso de administrador</h3>
+        <p class="auth-help" data-i18n="admin.authHelp">Inicia sesion con Auth0 para editar el contenido del CV.</p>
         <form id="auth-form" class="auth-form">
           <p id="auth-error" class="auth-error" aria-live="polite"></p>
           <div class="auth-actions">
-            <button id="auth-login" class="btn btn-primary" type="submit">Ingresar con Auth0</button>
-            <button id="auth-cancel" class="btn btn-ghost" type="button">Cancelar</button>
+            <button id="auth-login" class="btn btn-primary" type="submit" data-i18n="admin.loginButton">Ingresar con Auth0</button>
+            <button id="auth-cancel" class="btn btn-ghost" type="button" data-i18n="admin.cancelButton">Cancelar</button>
           </div>
         </form>
       </div>
@@ -136,10 +159,10 @@
     <!-- Panel lateral para editar contenido -->
     <aside id="admin-panel" class="admin-panel" aria-hidden="true">
       <div class="admin-header">
-        <h3>Panel de contenido</h3>
+        <h3 data-i18n="admin.panelTitle">Panel de contenido</h3>
         <div class="admin-header-actions">
-          <button id="logout-admin" type="button" class="close-btn">Cerrar sesion</button>
-          <button id="close-admin" type="button" class="close-btn">Cerrar</button>
+          <button id="logout-admin" type="button" class="close-btn" data-i18n="admin.logoutButton">Cerrar sesion</button>
+          <button id="close-admin" type="button" class="close-btn" data-i18n="admin.closeButton">Cerrar</button>
         </div>
       </div>
 
@@ -163,6 +186,10 @@
           <textarea name="skills" rows="3" required></textarea>
         </label>
         <label>
+          Certificaciones (1 por linea: titulo | entidad | año | porcentaje)
+          <textarea name="certifications" rows="4"></textarea>
+        </label>
+        <label>
           Experiencia (1 por linea: periodo | cargo | descripcion)
           <textarea name="experience" rows="5" required></textarea>
         </label>
@@ -172,10 +199,10 @@
         </label>
 
         <div class="admin-actions">
-          <button class="btn btn-primary" type="submit">Guardar</button>
-          <button class="btn btn-ghost" id="reset-content" type="button">Restaurar</button>
-          <button class="btn btn-ghost" id="download-content" type="button">Descargar JSON</button>
-          <label class="import-label">
+          <button class="btn btn-primary" type="submit" data-i18n="admin.saveButton">Guardar</button>
+          <button class="btn btn-ghost" id="reset-content" type="button" data-i18n="admin.restoreButton">Restaurar</button>
+          <button class="btn btn-ghost" id="download-content" type="button" data-i18n="admin.downloadButton">Descargar JSON</button>
+          <label class="import-label" data-i18n="admin.uploadLabel">
             Cargar JSON
             <input id="upload-content" type="file" accept="application/json" />
           </label>
@@ -186,6 +213,7 @@
     <!-- Orden importante: SDK -> config -> modelo -> logica principal -->
     <script src="https://cdn.auth0.com/js/auth0-spa-js/2.1/auth0-spa-js.production.js"></script>
     <script src="/api/config"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
     <script src="content-model.js"></script>
     <script src="script.js"></script>
   </body>
