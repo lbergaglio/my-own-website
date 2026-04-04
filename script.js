@@ -20,7 +20,7 @@ import { create as createAuthModule } from './frontend/auth-module.js';
 // Claves de persistencia local y endpoint del CMS.
 const STORAGE_KEY = 'cv-content-v1';
 const API_ENDPOINT = '/api/content';
-const GITHUB_STATS_CACHE_KEY = 'cv-github-stats-v1';
+const GITHUB_STATS_CACHE_KEY = 'cv-github-stats-v2';
 const LOCALE_KEY = 'cv-ui-locale-v1';
 const TRANSLATION_CACHE_KEY = 'cv-translation-cache-v1';
 const ATS_JOB_DESCRIPTION_KEY = 'cv-ats-job-description-v1';
@@ -100,15 +100,18 @@ const UI_TEXT = {
       progress: 'Progreso',
     },
     githubStats: {
-      repos: 'Repos públicos',
+      repos: 'Repos visibles',
+      privateRepos: 'Repos privados',
       stars: 'Estrellas',
       followers: 'Seguidores',
-      updated: 'Ultima actualización',
+      updated: 'Ultima actividad',
       featured: 'Repositorio destacado',
+      latestCommit: 'Ultimo commit',
+      privateAccess: 'Incluye privados',
       loadingTitle: 'Cargando actividad de GitHub',
-      loadingBody: 'La pagina consulta la API publica de GitHub para mostrar estadisticas y repositorios recientes.',
+      loadingBody: 'La pagina consulta un endpoint autenticado de GitHub para mostrar repos publicos, privados y commits recientes.',
       noDataTitle: 'No se pudo cargar la actividad',
-      noDataBody: 'Revisa la conexion a internet o el nombre de usuario configurado en api/config.js.',
+      noDataBody: 'Revisa la conexion, el token GITHUB_TOKEN o el nombre de usuario configurado en api/config.js.',
     },
     admin: {
       editButton: 'Editar contenido',
@@ -194,15 +197,18 @@ const UI_TEXT = {
       progress: 'Progress',
     },
     githubStats: {
-      repos: 'Public repos',
+      repos: 'Visible repos',
+      privateRepos: 'Private repos',
       stars: 'Stars',
       followers: 'Followers',
-      updated: 'Last updated',
+      updated: 'Latest activity',
       featured: 'Featured repository',
+      latestCommit: 'Latest commit',
+      privateAccess: 'Includes private repos',
       loadingTitle: 'Loading GitHub activity',
-      loadingBody: 'This page queries the public GitHub API to show recent stats and repositories.',
+      loadingBody: 'This page queries an authenticated GitHub endpoint to show public repos, private repos, and recent commits.',
       noDataTitle: 'Could not load activity',
-      noDataBody: 'Check your internet connection or the username configured in api/config.js.',
+      noDataBody: 'Check your connection, the GITHUB_TOKEN, or the username configured in api/config.js.',
     },
     admin: {
       editButton: 'Edit content',

@@ -10,6 +10,8 @@ export function create(deps) {
     formatRelativeDate,
   } = deps;
 
+  const GITHUB_API_ENDPOINT = '/api/github';
+
   function createStatCard(label, value) {
       const article = document.createElement('article');
       article.className = 'github-stat';
@@ -30,6 +32,7 @@ export function create(deps) {
 
       const placeholders = [
         [localeText.githubStats.repos, '—'],
+        [localeText.githubStats.privateRepos, '—'],
         [localeText.githubStats.stars, '—'],
         [localeText.githubStats.followers, '—'],
         [localeText.githubStats.updated, '—'],
@@ -83,6 +86,7 @@ export function create(deps) {
 
       [
         [localeText.githubStats.repos, String(stats.publicRepos)],
+        [localeText.githubStats.privateRepos, String(stats.privateRepos)],
         [localeText.githubStats.stars, String(stats.stars)],
         [localeText.githubStats.followers, String(stats.followers)],
         [localeText.githubStats.updated, stats.lastUpdateLabel],
@@ -102,11 +106,14 @@ export function create(deps) {
         </div>
         <p class="github-featured-body">${escapeHTML(stats.featuredRepo.description)}</p>
         <div class="github-featured-meta">
+          ${stats.includePrivateRepos ? `<span class="github-pill">${escapeHTML(localeText.githubStats.privateAccess)}</span>` : ''}
+          ${stats.featuredRepo.private ? `<span class="github-pill">Privado</span>` : ''}
           ${stats.featuredRepo.language ? `<span class="github-pill">${escapeHTML(stats.featuredRepo.language)}</span>` : ''}
           <span class="github-pill">⭐ ${stats.featuredRepo.stars}</span>
           <span class="github-pill">Forks ${stats.featuredRepo.forks}</span>
           <span class="github-pill">Actualizado ${escapeHTML(stats.featuredRepo.updatedAtLabel)}</span>
         </div>
+        ${stats.featuredRepo.latestCommitMessage ? `<p class="github-featured-body"><strong>${escapeHTML(localeText.githubStats.latestCommit)}:</strong> ${escapeHTML(stats.featuredRepo.latestCommitMessage)}</p>` : ''}
       `;
       refs.githubStats.appendChild(featured);
     }
@@ -127,30 +134,57 @@ export function create(deps) {
       return {
         name: repo.name || 'Repositorio sin nombre',
         description: repo.description || 'Sin descripción disponible.',
-        url: repo.html_url || `https://github.com/${getGithubUsername()}`,
+        url: repo.url || `https://github.com/${getGithubUsername()}`,
         language: repo.language || '',
-        stars: Number(repo.stargazers_count || 0),
-        forks: Number(repo.forks_count || 0),
-        updatedAtLabel: formatRelativeDate(repo.updated_at || new Date().toISOString()),
+        stars: Number(repo.stars || 0),
+        forks: Number(repo.forks || 0),
+        updatedAtLabel: formatRelativeDate(repo.latestCommitAt || repo.updatedAt || new Date().toISOString()),
+        latestCommitMessage: repo.latestCommitMessage || '',
+        latestCommitUrl: repo.latestCommitUrl || '',
+        private: Boolean(repo.private),
       };
     }
 
   function normalizeGithubStats(user, repos) {
       const repoList = Array.isArray(repos) ? repos : [];
       const featuredRepoSource = repoList
-        .filter((repo) => !repo.fork)
-        .sort((left, right) => (right.stargazers_count || 0) - (left.stargazers_count || 0) || new Date(right.updated_at).getTime() - new Date(left.updated_at).getTime())[0]
+        .filter((repo) => !repo.fork && !repo.archived)
+        .sort((left, right) => {
+          const rightDate = new Date(right.latestCommitAt || right.updatedAt || 0).getTime();
+          const leftDate = new Date(left.latestCommitAt || left.updatedAt || 0).getTime();
+
+          if (rightDate !== leftDate) {
+            return rightDate - leftDate;
+          }
+
+          return (right.stars || 0) - (left.stars || 0);
+        })[0]
         || repoList[0]
         || null;
 
-      const stars = repoList.reduce((total, repo) => total + Number(repo.stargazers_count || 0), 0);
+      const stars = repoList.reduce((total, repo) => total + Number(repo.stars || 0), 0);
+      const privateRepos = repoList.filter((repo) => repo.private).length;
+      const latestActivityDate = repoList.reduce((latest, repo) => {
+        const candidate = repo.latestCommitAt || repo.updatedAt || '';
+        if (!candidate) {
+          return latest;
+        }
+
+        if (!latest) {
+          return candidate;
+        }
+
+        return new Date(candidate).getTime() > new Date(latest).getTime() ? candidate : latest;
+      }, '');
 
       return {
-        publicRepos: Number(user.public_repos || repoList.length || 0),
+        publicRepos: Number(repoList.length || user.public_repos || 0),
+        privateRepos,
         stars,
         followers: Number(user.followers || 0),
-        lastUpdateLabel: formatRelativeDate(user.updated_at || new Date().toISOString()),
+        lastUpdateLabel: formatRelativeDate(latestActivityDate || user.updated_at || new Date().toISOString()),
         featuredRepo: normalizeFeaturedRepo(featuredRepoSource),
+        includePrivateRepos: Boolean(user && (privateRepos > 0 || repoList.some((repo) => repo.private))),
       };
     }
 
@@ -186,22 +220,17 @@ export function create(deps) {
         return cached.stats;
       }
 
-      const [userResponse, reposResponse] = await Promise.all([
-        fetch(`https://api.github.com/users/${encodeURIComponent(username)}`, {
-          headers: { Accept: 'application/vnd.github+json' },
-        }),
-        fetch(`https://api.github.com/users/${encodeURIComponent(username)}/repos?sort=updated&per_page=20&type=owner`, {
-          headers: { Accept: 'application/vnd.github+json' },
-        }),
-      ]);
+      const response = await fetch(`${GITHUB_API_ENDPOINT}?username=${encodeURIComponent(username)}`, {
+        headers: { Accept: 'application/json' },
+      });
 
-      if (!userResponse.ok || !reposResponse.ok) {
+      if (!response.ok) {
         throw new Error('No se pudo consultar la API de GitHub');
       }
 
-      const user = await userResponse.json();
-      const repos = await reposResponse.json();
-      const stats = normalizeGithubStats(user, repos);
+      const payload = await response.json();
+      const stats = normalizeGithubStats(payload.user || {}, payload.repos || []);
+      stats.includePrivateRepos = Boolean(payload.includePrivateRepos || stats.includePrivateRepos);
       saveCache(stats);
       return stats;
     }
