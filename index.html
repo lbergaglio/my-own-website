@@ -198,6 +198,19 @@
           <textarea name="projects" rows="5"></textarea>
         </label>
 
+        <section class="ats-helper" aria-labelledby="ats-helper-title">
+          <h4 id="ats-helper-title" class="ats-helper-title" data-i18n="admin.atsTitle">Optimizador ATS</h4>
+          <label>
+            <span data-i18n="admin.atsJobLabel">Pega la descripcion de la vacante (opcional)</span>
+            <textarea id="ats-job-description" name="atsJobDescription" rows="5" data-i18n-placeholder="admin.atsJobPlaceholder" placeholder="Requisitos, responsabilidades y tecnologias de la oferta"></textarea>
+          </label>
+          <div class="ats-helper-actions">
+            <button id="analyze-ats" class="btn btn-ghost" type="button" data-i18n="admin.atsAnalyzeButton">Analizar match ATS</button>
+            <button id="apply-ats-summary" class="btn btn-ghost" type="button" data-i18n="admin.atsApplySummaryButton">Aplicar sugerencias al resumen</button>
+          </div>
+          <div id="ats-analysis-result" class="ats-analysis" aria-live="polite"></div>
+        </section>
+
         <div class="admin-actions">
           <button class="btn btn-primary" type="submit" data-i18n="admin.saveButton">Guardar</button>
           <button class="btn btn-ghost" id="reset-content" type="button" data-i18n="admin.restoreButton">Restaurar</button>
@@ -215,6 +228,6 @@
     <script src="/api/config"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
     <script src="content-model.js"></script>
-    <script src="script.js"></script>
+    <script type="module" src="script.js"></script>
   </body>
 </html>

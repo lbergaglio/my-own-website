@@ -1,9 +1,29 @@
+import {
+  readLocaleValue as utilReadLocaleValue,
+  clampPercentage as utilClampPercentage,
+  formatRelativeDate as utilFormatRelativeDate,
+  parsePipeLines as utilParsePipeLines,
+  buildPhoneHref as utilBuildPhoneHref,
+  formatPhoneDisplay as utilFormatPhoneDisplay,
+  escapeHTML as utilEscapeHTML,
+  normalizeAuth0Domain as utilNormalizeAuth0Domain,
+} from './frontend/utils.js';
+import {
+  normalizeText as atsNormalizeText,
+  buildAnalysis as atsBuildAnalysis,
+} from './frontend/ats-engine.js';
+import { create as createAtsPanel } from './frontend/ats-panel.js';
+import { create as createRenderModule } from './frontend/render-module.js';
+import { create as createGithubModule } from './frontend/github-module.js';
+import { create as createAuthModule } from './frontend/auth-module.js';
+
 // Claves de persistencia local y endpoint del CMS.
 const STORAGE_KEY = 'cv-content-v1';
 const API_ENDPOINT = '/api/content';
 const GITHUB_STATS_CACHE_KEY = 'cv-github-stats-v1';
 const LOCALE_KEY = 'cv-ui-locale-v1';
 const TRANSLATION_CACHE_KEY = 'cv-translation-cache-v1';
+const ATS_JOB_DESCRIPTION_KEY = 'cv-ats-job-description-v1';
 const SUPPORTED_LOCALES = ['es', 'en'];
 
 // Config runtime inyectada desde /api/config.
@@ -24,6 +44,8 @@ const AUTH0_SCOPE = 'openid profile email';
 const AUTH_INTENT_KEY = 'cv-admin-auth-intent';
 const { defaultContent, normalizeContent } = window.CV_CONTENT_MODEL || {};
 
+let authApi = null;
+
 const UI_TEXT = {
   es: {
     title: 'CV Profesional | {name}',
@@ -40,7 +62,7 @@ const UI_TEXT = {
       contact: 'Contactar',
       projects: 'Ver proyectos',
       downloadCV: 'Descargar CV',
-      downloadATS: 'Descargar ATS',
+      downloadATS: 'Descargar ATS (TXT)',
     },
     panel: {
       contactInfo: 'Informacion de contacto',
@@ -101,6 +123,22 @@ const UI_TEXT = {
       authHelp: 'Inicia sesion con Auth0 para editar el contenido del CV.',
       loginButton: 'Ingresar con Auth0',
       cancelButton: 'Cancelar',
+      atsTitle: 'Optimizador ATS',
+      atsJobLabel: 'Pega la descripcion de la vacante (opcional)',
+      atsJobPlaceholder: 'Requisitos, responsabilidades y tecnologias de la oferta',
+      atsAnalyzeButton: 'Analizar match ATS',
+      atsApplySummaryButton: 'Agregar keywords a skills',
+      atsNoData: 'Pega una vacante para analizar keywords y score de match.',
+      atsScore: 'Score estimado',
+      atsLevel: 'Nivel',
+      atsLevelLow: 'Bajo',
+      atsLevelMedium: 'Medio',
+      atsLevelHigh: 'Alto',
+      atsMatched: 'Keywords detectadas',
+      atsMissing: 'Keywords faltantes',
+      atsSuggestions: 'Frases sugeridas',
+      atsNoSuggestions: 'No hay sugerencias disponibles para aplicar.',
+      atsSummaryApplied: 'Se agregaron keywords sugeridas al campo skills.',
     },
   },
   en: {
@@ -118,7 +156,7 @@ const UI_TEXT = {
       contact: 'Contact me',
       projects: 'View projects',
       downloadCV: 'Download CV',
-      downloadATS: 'Download ATS',
+      downloadATS: 'Download ATS (TXT)',
     },
     panel: {
       contactInfo: 'Contact information',
@@ -179,6 +217,22 @@ const UI_TEXT = {
       authHelp: 'Log in with Auth0 to edit CV content.',
       loginButton: 'Login with Auth0',
       cancelButton: 'Cancel',
+      atsTitle: 'ATS Optimizer',
+      atsJobLabel: 'Paste the job description (optional)',
+      atsJobPlaceholder: 'Requirements, responsibilities, and technologies from the job post',
+      atsAnalyzeButton: 'Analyze ATS match',
+      atsApplySummaryButton: 'Add keywords to skills',
+      atsNoData: 'Paste a job post to analyze keywords and match score.',
+      atsScore: 'Estimated score',
+      atsLevel: 'Level',
+      atsLevelLow: 'Low',
+      atsLevelMedium: 'Medium',
+      atsLevelHigh: 'High',
+      atsMatched: 'Matched keywords',
+      atsMissing: 'Missing keywords',
+      atsSuggestions: 'Suggested phrases',
+      atsNoSuggestions: 'No suggestions available to apply.',
+      atsSummaryApplied: 'Suggested keywords were added to the skills field.',
     },
   },
 };
@@ -234,7 +288,78 @@ const admin = {
   authLoginBtn: document.getElementById('auth-login'),
   authError: document.getElementById('auth-error'),
   authCancel: document.getElementById('auth-cancel'),
+  atsJobDescription: document.getElementById('ats-job-description'),
+  atsAnalyzeBtn: document.getElementById('analyze-ats'),
+  atsApplySummaryBtn: document.getElementById('apply-ats-summary'),
+  atsAnalysisResult: document.getElementById('ats-analysis-result'),
 };
+
+const atsPanelApi = createAtsPanel({
+  admin,
+  storageKey: ATS_JOB_DESCRIPTION_KEY,
+  getCurrentLocale: () => currentLocale,
+  getLocaleText: () => UI_TEXT[currentLocale] || UI_TEXT.es,
+  getContent: () => cvContent,
+  buildAnalysis: (jobDescription, content) => buildATSAnalysis(jobDescription, content),
+  escapeHTML: (value) => escapeHTML(value),
+  normalizeText: (value) => normalizeAtsText(value),
+});
+
+const githubApi = createGithubModule({
+  refs,
+  getLocaleText: () => UI_TEXT[currentLocale] || UI_TEXT.es,
+  getCurrentLocale: () => currentLocale,
+  getGithubUsername: () => GITHUB_USERNAME,
+  getCacheMinutes: () => GITHUB_STATS_CACHE_MINUTES,
+  cacheKey: GITHUB_STATS_CACHE_KEY,
+  escapeHTML: (value) => escapeHTML(value),
+  formatRelativeDate: (isoDate) => formatRelativeDate(isoDate),
+});
+
+const renderApi = createRenderModule({
+  refs,
+  admin,
+  getLocaleText: () => UI_TEXT[currentLocale] || UI_TEXT.es,
+  getCurrentLocale: () => currentLocale,
+  clampPercentage: (value) => clampPercentage(value),
+  escapeHTML: (value) => escapeHTML(value),
+  buildPhoneHref: (phone) => buildPhoneHref(phone),
+  formatPhoneDisplay: (phone) => formatPhoneDisplay(phone),
+  initReveal: () => initReveal(),
+  localizeRenderedContent: (content) => localizeRenderedContent(content),
+  refreshATSAnalysisPreview: () => refreshATSAnalysisPreview(),
+  ensureGithubSkeleton: () => {
+    if (refs.githubStats && refs.githubStats.children.length === 0) {
+      githubApi.renderSkeleton();
+    }
+  },
+});
+
+authApi = createAuthModule({
+  admin,
+  auth0Config: AUTH0_CONFIG,
+  auth0RedirectUri: AUTH0_REDIRECT_URI,
+  auth0Scope: AUTH0_SCOPE,
+  auth0Connection: AUTH0_CONNECTION,
+  authIntentKey: AUTH_INTENT_KEY,
+  getAuthClientPromise: () => auth0ClientPromise,
+  onOpenAdminPanel: () => {
+    admin.panel.classList.add('open');
+    admin.panel.setAttribute('aria-hidden', 'false');
+  },
+  onCloseAdminPanel: () => {
+    admin.panel.classList.remove('open');
+    admin.panel.setAttribute('aria-hidden', 'true');
+  },
+  onCloseAuthModal: () => {
+    admin.authModal.classList.remove('open');
+    admin.authModal.setAttribute('aria-hidden', 'true');
+  },
+  onOpenAuthModal: () => {
+    admin.authModal.classList.add('open');
+    admin.authModal.setAttribute('aria-hidden', 'false');
+  },
+});
 
 // Cliente Auth0 lazy (promesa compartida para evitar multiples instancias).
 const auth0ClientPromise = createAuth0ClientInstance();
@@ -330,12 +455,23 @@ function applyStaticLocale(locale, content) {
     }
   });
 
+  const placeholders = document.querySelectorAll('[data-i18n-placeholder]');
+  placeholders.forEach((element) => {
+    const key = element.getAttribute('data-i18n-placeholder');
+    const value = readLocaleValue(localeText, key);
+
+    if (value !== undefined && typeof value === 'string') {
+      element.setAttribute('placeholder', value);
+    }
+  });
+
   if (refs.metaDescription) {
     refs.metaDescription.setAttribute('content', localeText.description);
   }
 
   document.title = localeText.title.replace('{name}', content?.name || '');
   localStorage.setItem(LOCALE_KEY, locale);
+  refreshATSAnalysisPreview();
 }
 
 // Mantiene el estado visual del selector visible sincronizado.
@@ -367,20 +503,7 @@ function bindLocaleActions() {
 
 // Lee una clave anidada del diccionario de textos.
 function readLocaleValue(source, key) {
-  if (!source || !key) return undefined;
-  
-  const parts = String(key || '').split('.');
-  let current = source;
-  
-  for (const part of parts) {
-    if (current && typeof current === 'object' && part in current) {
-      current = current[part];
-    } else {
-      return undefined;
-    }
-  }
-  
-  return current;
+  return utilReadLocaleValue(source, key);
 }
 
 // Traduce el contenido dinamico renderizado cuando el idioma es distinto de espanol.
@@ -560,201 +683,22 @@ function writeTranslationCache(key, value) {
 
 // Normaliza porcentaje para las barras de habilidad.
 function clampPercentage(value) {
-  const numeric = Number(value);
-  if (!Number.isFinite(numeric)) {
-    return 0;
-  }
-
-  return Math.max(0, Math.min(100, Math.round(numeric)));
+  return utilClampPercentage(value);
 }
 
 // Renderiza todas las secciones visibles del sitio a partir del modelo de contenido.
 function render(content) {
-  const localeText = UI_TEXT[currentLocale] || UI_TEXT.es;
-  refs.heroBadge.textContent = content.badge;
-  refs.heroName.textContent = content.name;
-  refs.heroRole.textContent = content.role;
-  refs.heroSummary.textContent = content.summary;
-  refs.aboutText.textContent = content.about;
-  refs.contactMessage.textContent = content.contactMessage;
-  refs.contactEmail.textContent = content.email;
-  refs.contactEmail.href = `mailto:${content.email}`;
-  refs.footerName.textContent = content.name;
-  refs.year.textContent = String(new Date().getFullYear());
-  document.title = localeText.title.replace('{name}', content.name);
-  if (refs.metaDescription) {
-    refs.metaDescription.setAttribute('content', localeText.description);
-  }
-
-  const socialItems = [
-    { label: 'LinkedIn', url: content.social.linkedin },
-    { label: 'GitHub', url: content.social.github },
-    { label: 'Portfolio', url: content.social.portfolio },
-    { label: 'X', url: content.social.twitter },
-  ].filter((item) => item.url && item.url.trim().length > 0);
-
-  refs.socialLinks.innerHTML = '';
-  refs.footerSocialLinks.innerHTML = '';
-  socialItems.forEach((item) => {
-    refs.socialLinks.appendChild(createSocialLink(item.label, item.url));
-    refs.footerSocialLinks.appendChild(createSocialLink(item.label, item.url));
-  });
-
-  refs.factsList.innerHTML = '';
-  const personalFacts = [
-    { label: localeText.facts.location, value: content.location, href: '' },
-    { label: localeText.facts.email, value: content.email, href: `mailto:${content.email}` },
-    { label: localeText.facts.phone, value: formatPhoneDisplay(content.phone), href: buildPhoneHref(content.phone) },
-    { label: localeText.facts.languages, value: content.languages, href: '' },
-  ];
-
-  personalFacts.forEach((item) => {
-    const row = document.createElement('div');
-    row.className = 'fact-item';
-
-    const term = document.createElement('dt');
-    term.className = 'fact-label';
-    term.textContent = item.label;
-
-    const description = document.createElement('dd');
-    description.className = 'fact-value';
-
-    if (item.href) {
-      const link = document.createElement('a');
-      link.className = 'fact-link';
-      link.href = item.href;
-      link.textContent = item.value;
-      if (item.href.startsWith('http')) {
-        link.target = '_blank';
-        link.rel = 'noreferrer noopener';
-      }
-      description.appendChild(link);
-    } else {
-      description.textContent = item.value;
-    }
-
-    row.appendChild(term);
-    row.appendChild(description);
-    refs.factsList.appendChild(row);
-  });
-
-  refs.experienceList.innerHTML = '';
-  content.experience.forEach((item) => {
-    const article = document.createElement('article');
-    article.className = 'card reveal';
-    article.innerHTML = `
-      <p class="meta">${escapeHTML(item.period)}</p>
-      <h3>${escapeHTML(item.title)}</h3>
-      <p class="body-text">${escapeHTML(item.description)}</p>
-    `;
-    refs.experienceList.appendChild(article);
-  });
-
-  refs.certificationsList.innerHTML = '';
-  if (!content.certifications.length) {
-    const emptyCard = document.createElement('article');
-    emptyCard.className = 'card certification-card reveal';
-    emptyCard.innerHTML = `
-      <h3>${escapeHTML(localeText.empty.certificationsTitle)}</h3>
-      <p class="body-text certification-issuer">${escapeHTML(localeText.empty.certificationsBody)}</p>
-    `;
-    refs.certificationsList.appendChild(emptyCard);
-  }
-
-  content.certifications.forEach((item) => {
-    const percentage = clampPercentage(item.percentage ?? 100);
-    const isComplete = percentage >= 100;
-    const certificationText = UI_TEXT[currentLocale] || UI_TEXT.es;
-    const article = document.createElement('article');
-    article.className = 'card certification-card reveal';
-    article.innerHTML = `
-      <div class="certification-head">
-        <div>
-          <div class="certification-year">${escapeHTML(item.year)}</div>
-          <h3>${escapeHTML(item.name)}</h3>
-        </div>
-        <span class="certification-percent">${percentage}%</span>
-      </div>
-      <div class="certification-track" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${percentage}" aria-label="${escapeHTML(item.name)} ${percentage}%">
-        <span class="certification-fill ${isComplete ? 'is-complete' : ''}" style="width: ${percentage}%"></span>
-      </div>
-      <div class="certification-foot">
-        <span class="certification-status ${isComplete ? 'is-complete' : 'is-progress'}">${escapeHTML(isComplete ? certificationText.certifications.complete : certificationText.certifications.inProgress)}</span>
-        <span class="certification-progress-label">${escapeHTML(certificationText.certifications.progress)}</span>
-      </div>
-      <p class="body-text certification-issuer">${escapeHTML(item.issuer)}</p>
-    `;
-    refs.certificationsList.appendChild(article);
-  });
-
-  refs.projectList.innerHTML = '';
-  content.projects.forEach((item) => {
-    const article = document.createElement('article');
-    article.className = 'card reveal';
-    article.innerHTML = `
-      <h3>${escapeHTML(item.title)}</h3>
-      <p class="body-text">${escapeHTML(item.description)}</p>
-      <p class="stack">${escapeHTML(item.stack)}</p>
-    `;
-    refs.projectList.appendChild(article);
-  });
-  updateProjectsVisibility(content.projects.length > 0);
-
-  if (refs.githubStats && refs.githubStats.children.length === 0) {
-    renderGithubStatsSkeleton();
-  }
-
-  refs.skillsList.innerHTML = '';
-  content.skills.forEach((skill) => {
-    const span = document.createElement('span');
-    span.className = 'skill-item';
-    span.textContent = skill;
-    refs.skillsList.appendChild(span);
-  });
-
-  initReveal();
-  void localizeRenderedContent(content);
+  renderApi.render(content);
 }
 
 // Muestra/oculta la seccion y enlaces de proyectos cuando no hay contenido.
 function updateProjectsVisibility(hasProjects) {
-  if (refs.projectsSection) {
-    refs.projectsSection.hidden = !hasProjects;
-  }
-
-  refs.projectAnchors.forEach((anchor) => {
-    anchor.hidden = !hasProjects;
-    anchor.setAttribute('aria-hidden', String(!hasProjects));
-    anchor.tabIndex = hasProjects ? 0 : -1;
-  });
+  renderApi.updateProjectsVisibility(hasProjects);
 }
 
 // Completa el formulario admin con el estado actual del contenido.
 function populateForm(content) {
-  admin.form.elements.name.value = content.name;
-  admin.form.elements.role.value = content.role;
-  admin.form.elements.badge.value = content.badge;
-  admin.form.elements.summary.value = content.summary;
-  admin.form.elements.about.value = content.about;
-  admin.form.elements.location.value = content.location;
-  admin.form.elements.email.value = content.email;
-  admin.form.elements.phone.value = content.phone;
-  admin.form.elements.languages.value = content.languages;
-  admin.form.elements.linkedin.value = content.social.linkedin;
-  admin.form.elements.github.value = content.social.github;
-  admin.form.elements.portfolio.value = content.social.portfolio;
-  admin.form.elements.twitter.value = content.social.twitter;
-  admin.form.elements.contactMessage.value = content.contactMessage;
-  admin.form.elements.skills.value = content.skills.join(', ');
-  admin.form.elements.certifications.value = content.certifications
-    .map((item) => `${item.name} | ${item.issuer} | ${item.year} | ${item.percentage ?? 100}`)
-    .join('\n');
-  admin.form.elements.experience.value = content.experience
-    .map((item) => `${item.period} | ${item.title} | ${item.description}`)
-    .join('\n');
-  admin.form.elements.projects.value = content.projects
-    .map((item) => `${item.title} | ${item.description} | ${item.stack}`)
-    .join('\n');
+  renderApi.populateForm(content);
 }
 
 // Genera HTML para CV en formato visual con estilos
@@ -808,10 +752,108 @@ function generateATSCVHTML(content, labels = {}) {
   return `<!DOCTYPE html><html><head><meta charset="UTF-8"/><title>${escapeHTML(content.name)} - CV ATS</title><style>html,body{margin:0;padding:0}body{font-family:'Courier New',monospace;white-space:pre-wrap;word-wrap:break-word;font-size:9.5px;line-height:1.22;color:#111;padding:8mm 9mm}h1,h2,p{margin:0}h1{font-size:16px;line-height:1.05;margin-bottom:2px}h2{font-size:10px;margin:8px 0 4px;text-transform:uppercase;letter-spacing:.04em}section{page-break-inside:avoid;margin-bottom:4px} .block{page-break-inside:avoid} .spacer{height:4px} .label{font-weight:700}</style></head><body><h1>${escapeHTML(content.name)}</h1><div class="block">${escapeHTML(content.role)} | ${escapeHTML(content.badge)}</div><div class="spacer"></div><section><h2>${finalLabels.contactInfo}</h2><div class="block"><span class="label">${finalLabels.location}:</span> ${escapeHTML(content.location)} | <span class="label">${finalLabels.email}:</span> ${escapeHTML(content.email)} | <span class="label">${finalLabels.phone}:</span> ${escapeHTML(content.phone)} | <span class="label">${finalLabels.languages}:</span> ${escapeHTML(content.languages)}</div></section><section><h2>${finalLabels.summary}</h2><div class="block">${escapeHTML(content.summary)}</div></section><section><h2>${finalLabels.about}</h2><div class="block">${escapeHTML(content.about)}</div></section><section><h2>${finalLabels.experience}</h2><div class="block">${experience}</div></section><section><h2>${finalLabels.certifications}</h2><div class="block">${certifications}</div></section>${projectsSectionHTML}<section><h2>${finalLabels.skills}</h2><div class="block">${skills}</div></section><section><h2>${finalLabels.contactMessage}</h2><div class="block">${escapeHTML(content.contactMessage)}</div></section><section><h2>${finalLabels.socialProfiles}</h2><div class="block">LinkedIn: ${content.social.linkedin || 'N/A'} | GitHub: ${content.social.github || 'N/A'} | Portfolio: ${content.social.portfolio || 'N/A'}</div></section></body></html>`;
 }
 
+// Genera una version ATS en texto plano para mejorar parseo en filtros automaticos.
+function generateATSCVText(content, labels = {}) {
+  const defaultLabels = {
+    summary: 'SUMMARY',
+    skills: 'SKILLS',
+    experience: 'EXPERIENCE',
+    certifications: 'CERTIFICATIONS',
+    projects: 'PROJECTS',
+    contactMessage: 'CONTACT MESSAGE',
+    socialProfiles: 'SOCIAL PROFILES',
+    location: 'Location',
+    email: 'Email',
+    phone: 'Phone',
+    languages: 'Languages',
+  };
+
+  const finalLabels = { ...defaultLabels, ...labels };
+  const keywordSet = new Set();
+  content.skills.forEach((skill) => keywordSet.add(String(skill || '').trim()));
+  content.projects.forEach((project) => {
+    String(project.stack || '')
+      .split(/[;,/]+/)
+      .map((part) => part.trim())
+      .filter(Boolean)
+      .forEach((part) => keywordSet.add(part));
+  });
+
+  const keywords = Array.from(keywordSet).filter(Boolean).join(', ');
+  const experienceText = content.experience
+    .map((item) => `- ${item.title} (${item.period})\n  ${item.description}`)
+    .join('\n\n');
+  const certificationsText = content.certifications.length
+    ? content.certifications.map((item) => `- ${item.name} - ${item.issuer} (${item.year})`).join('\n')
+    : '- N/A';
+  const projectsText = content.projects.length
+    ? content.projects.map((item) => `- ${item.title}\n  ${item.description}\n  Stack: ${item.stack}`).join('\n\n')
+    : '';
+
+  return [
+    content.name,
+    content.role,
+    '',
+    `${finalLabels.location}: ${content.location}`,
+    `${finalLabels.email}: ${content.email}`,
+    `${finalLabels.phone}: ${content.phone}`,
+    `${finalLabels.languages}: ${content.languages}`,
+    '',
+    finalLabels.summary,
+    content.summary,
+    '',
+    finalLabels.skills,
+    content.skills.join(', '),
+    '',
+    'KEYWORDS',
+    keywords || 'N/A',
+    '',
+    finalLabels.experience,
+    experienceText || '- N/A',
+    '',
+    finalLabels.certifications,
+    certificationsText,
+    '',
+    ...(projectsText ? [finalLabels.projects, projectsText, ''] : []),
+    finalLabels.contactMessage,
+    content.contactMessage,
+    '',
+    finalLabels.socialProfiles,
+    `LinkedIn: ${content.social.linkedin || 'N/A'}`,
+    `GitHub: ${content.social.github || 'N/A'}`,
+    `Portfolio: ${content.social.portfolio || 'N/A'}`,
+  ].join('\n');
+}
+
+function downloadATSText(content, labels) {
+  const localeSuffix = currentLocale === 'en' ? 'EN' : 'ES';
+  const safeName = content.name.replace(/\s+/g, '_');
+  const filename = `${safeName}_CV_ATS_${localeSuffix}.txt`;
+  const text = generateATSCVText(content, labels);
+  const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
 async function downloadCVPDF(format) {
   const content = currentLocale !== 'es' ? translatedContent : cvContent;
+  const localeText = UI_TEXT[currentLocale] || UI_TEXT.es;
   const pdfLabels = currentLocale === 'es' ? {aboutTitle:'Sobre mí',experienceTitle:'Experiencia',certificationsTitle:'Certificaciones',projectsTitle:'Proyectos',skillsTitle:'Habilidades',contactTitle:'Contacto',location:'Ubicación',email:'Email',phone:'Teléfono',languages:'Idiomas',stackLabel:'Stack',contactInfo:'CONTACT INFORMATION',summary:'SUMMARY',about:'ABOUT',experience:'EXPERIENCE',certifications:'CERTIFICATIONS',projects:'PROJECTS',skills:'SKILLS',contactMessage:'CONTACT MESSAGE',socialProfiles:'SOCIAL PROFILES'} : {aboutTitle:'About me',experienceTitle:'Experience',certificationsTitle:'Certifications',projectsTitle:'Projects',skillsTitle:'Skills',contactTitle:'Contact',location:'Location',email:'Email',phone:'Phone',languages:'Languages',stackLabel:'Stack',contactInfo:'CONTACT INFORMATION',summary:'SUMMARY',about:'ABOUT',experience:'EXPERIENCE',certifications:'CERTIFICATIONS',projects:'PROJECTS',skills:'SKILLS',contactMessage:'CONTACT MESSAGE',socialProfiles:'SOCIAL PROFILES'};
-  const html = format === 'ats' ? generateATSCVHTML(content, pdfLabels) : generateStyledCVHTML(content, pdfLabels);
+  pdfLabels.atsScore = localeText.admin.atsScore;
+  pdfLabels.atsLevel = localeText.admin.atsLevel;
+  pdfLabels.atsMatched = localeText.admin.atsMatched;
+  pdfLabels.atsMissing = localeText.admin.atsMissing;
+  pdfLabels.atsSuggestions = localeText.admin.atsSuggestions;
+  if (format === 'ats') {
+    downloadATSText(content, pdfLabels);
+    return;
+  }
+
+  const html = generateStyledCVHTML(content, pdfLabels);
   
   const element = document.createElement('div');
   element.innerHTML = html;
@@ -819,9 +861,7 @@ async function downloadCVPDF(format) {
 
   try {
     const localeSuffix = currentLocale === 'en' ? 'EN' : 'ES';
-    const filename = format === 'ats' 
-      ? `${content.name.replace(/\s+/g, '_')}_CV_ATS_${localeSuffix}.pdf`
-      : `${content.name.replace(/\s+/g, '_')}_CV_${localeSuffix}.pdf`;
+    const filename = `${content.name.replace(/\s+/g, '_')}_CV_${localeSuffix}.pdf`;
 
     const opt = {
       margin: [6, 6, 6, 6],
@@ -923,6 +963,33 @@ function bindAdminActions() {
       admin.uploadInput.value = '';
     }
   });
+
+  if (atsPanelApi && typeof atsPanelApi.bind === 'function') {
+    atsPanelApi.bind();
+  } else {
+    refreshATSAnalysisPreview();
+  }
+}
+
+function getATSJobDescription() {
+  return atsPanelApi.getJobDescription();
+}
+
+function applyATSSuggestionsToSummary() {
+  atsPanelApi.applySuggestionsToSummary();
+}
+
+// Calcula score ATS estimado comparando keywords de la vacante con el contenido del CV.
+function buildATSAnalysis(jobDescription, content) {
+  return atsBuildAnalysis(jobDescription, content, currentLocale, UI_TEXT);
+}
+
+function refreshATSAnalysisPreview() {
+  atsPanelApi.refresh();
+}
+
+function normalizeAtsText(text) {
+  return atsNormalizeText(text);
 }
 
 // Guarda cambios del formulario y refresca UI/cache.
@@ -1040,46 +1107,17 @@ function closeAuthModal() {
 
 // Consulta estado de sesion en Auth0.
 async function isAuthenticated() {
-  const client = await getAuth0Client();
-  if (!client) {
-    return false;
-  }
-
-  try {
-    return await client.isAuthenticated();
-  } catch (error) {
-    return false;
-  }
+  return authApi.isAuthenticated();
 }
 
 // Crea cliente Auth0 solo si el SDK y la configuracion estan disponibles.
 async function createAuth0ClientInstance() {
-  if (!window.auth0 || !isAuthConfigured()) {
-    return null;
-  }
-
-  const client = await window.auth0.createAuth0Client({
-    domain: AUTH0_CONFIG.domain,
-    clientId: AUTH0_CONFIG.clientId,
-    authorizationParams: {
-      redirect_uri: AUTH0_REDIRECT_URI,
-      scope: AUTH0_SCOPE,
-      audience: AUTH0_CONFIG.audience || undefined,
-    },
-    cacheLocation: 'localstorage',
-  });
-
-  return client;
+  return authApi.createAuth0ClientInstance();
 }
 
 // Verifica placeholders para evitar intentos de auth incompletos.
 function isAuthConfigured() {
-  return (
-    AUTH0_CONFIG.domain &&
-    AUTH0_CONFIG.domain !== 'REEMPLAZAR_TU_DOMINIO.auth0.com' &&
-    AUTH0_CONFIG.clientId &&
-    AUTH0_CONFIG.clientId !== 'REEMPLAZAR_CLIENT_ID'
-  );
+  return authApi.isConfigured();
 }
 
 // Accessor central para cliente Auth0.
@@ -1089,61 +1127,12 @@ async function getAuth0Client() {
 
 // Login principal: popup; fallback a redirect cuando el navegador bloquea popups.
 async function loginAuth0() {
-  admin.authError.textContent = '';
-
-  const client = await getAuth0Client();
-  if (!client) {
-    admin.authError.textContent =
-      'Auth0 no esta configurado. Edita AUTH0_CONFIG en script.js.';
-    return;
-  }
-
-  try {
-    const authorizationParams = {
-      redirect_uri: AUTH0_REDIRECT_URI,
-      scope: AUTH0_SCOPE,
-      audience: AUTH0_CONFIG.audience || undefined,
-      connection: AUTH0_CONNECTION || undefined,
-    };
-
-    await client.loginWithPopup({ authorizationParams });
-
-    if (await client.isAuthenticated()) {
-      closeAuthModal();
-      openAdminPanel();
-    }
-  } catch (error) {
-    const errorCode = error?.error || error?.code || '';
-    if (errorCode.includes('popup')) {
-      sessionStorage.setItem(AUTH_INTENT_KEY, 'open-admin');
-      await client.loginWithRedirect({
-        authorizationParams: {
-          redirect_uri: AUTH0_REDIRECT_URI,
-          scope: AUTH0_SCOPE,
-          audience: AUTH0_CONFIG.audience || undefined,
-          connection: AUTH0_CONNECTION || undefined,
-        },
-      });
-      return;
-    }
-
-    admin.authError.textContent = getAuthErrorMessage(error);
-  }
+  return authApi.loginAuth0();
 }
 
 // Logout local del cliente Auth0 sin abandonar la pagina.
 async function logoutAuth0() {
-  closeAdminPanel();
-
-  const client = await getAuth0Client();
-  if (!client) {
-    alert('Sesion cerrada.');
-    return;
-  }
-
-  await client.logout({ openUrl: false });
-
-  alert('Sesion cerrada.');
+  return authApi.logoutAuth0();
 }
 
 // Convierte el formulario admin a estructura de contenido normalizada.
@@ -1187,50 +1176,12 @@ function collectFormData() {
 
 // Crea ancla social segura hacia URL externa.
 function createSocialLink(label, url) {
-  const anchor = document.createElement('a');
-  anchor.className = 'social-link';
-  anchor.href = url;
-  anchor.target = '_blank';
-  anchor.rel = 'noreferrer noopener';
-  anchor.textContent = label;
-  return anchor;
+  return renderApi.createSocialLink(label, url);
 }
 
 // Estado visual temporal mientras se consulta GitHub API.
 function renderGithubStatsSkeleton() {
-  if (!refs.githubStats) {
-    return;
-  }
-
-  refs.githubStats.innerHTML = '';
-  const localeText = UI_TEXT[currentLocale] || UI_TEXT.es;
-
-  const placeholders = [
-    [localeText.githubStats.repos, '—'],
-    [localeText.githubStats.stars, '—'],
-    [localeText.githubStats.followers, '—'],
-    [localeText.githubStats.updated, '—'],
-  ];
-
-  placeholders.forEach(([label, value]) => {
-    refs.githubStats.appendChild(createStatCard(label, value));
-  });
-
-  const featured = document.createElement('article');
-  featured.className = 'github-featured';
-  featured.innerHTML = `
-    <div class="github-featured-head">
-      <div>
-        <p class="meta">${escapeHTML(localeText.githubStats.featured)}</p>
-        <h3 class="github-featured-title">${escapeHTML(localeText.githubStats.loadingTitle)}</h3>
-      </div>
-    </div>
-    <p class="github-featured-body">${escapeHTML(localeText.githubStats.loadingBody)}</p>
-    <div class="github-featured-meta">
-      <span class="github-pill">${currentLocale === 'en' ? 'Auto-refresh from GitHub' : 'Auto-refresh desde GitHub'}</span>
-    </div>
-  `;
-  refs.githubStats.appendChild(featured);
+  githubApi.renderSkeleton();
 }
 
 // Fabrica de tarjetas de estadistica.
@@ -1246,247 +1197,32 @@ function createStatCard(label, value) {
 
 // Orquesta carga de estadisticas de GitHub y render con manejo de errores.
 async function loadAndRenderGithubStats() {
-  if (!refs.githubStats) {
-    return;
-  }
-
-  if (!GITHUB_USERNAME) {
-    refs.githubStats.innerHTML = '';
-    refs.githubStats.appendChild(createStatCard('GitHub', currentLocale === 'en' ? 'Configure username' : 'Configurar usuario'));
-    return;
-  }
-
-  try {
-    const stats = await loadGithubStats(GITHUB_USERNAME);
-    renderGithubStats(stats);
-  } catch (error) {
-    renderGithubStats(null, error);
-  }
+  await githubApi.loadAndRender();
 }
 
 // Render final de cards GitHub con fallback si no hay datos.
 function renderGithubStats(stats, error) {
-  if (!refs.githubStats) {
-    return;
-  }
-
-  refs.githubStats.innerHTML = '';
-  const localeText = UI_TEXT[currentLocale] || UI_TEXT.es;
-
-  if (!stats) {
-    refs.githubStats.appendChild(createStatCard('GitHub', error ? (currentLocale === 'en' ? 'Unavailable' : 'No disponible') : (currentLocale === 'en' ? 'No data' : 'Sin datos')));
-    const fallback = document.createElement('article');
-    fallback.className = 'github-featured';
-    fallback.innerHTML = `
-      <div class="github-featured-head">
-        <div>
-          <p class="meta">${escapeHTML(localeText.githubStats.featured)}</p>
-          <h3 class="github-featured-title">${escapeHTML(localeText.githubStats.noDataTitle)}</h3>
-        </div>
-      </div>
-      <p class="github-featured-body">${escapeHTML(localeText.githubStats.noDataBody)}</p>
-    `;
-    refs.githubStats.appendChild(fallback);
-    return;
-  }
-
-  [
-    [localeText.githubStats.repos, String(stats.publicRepos)],
-    [localeText.githubStats.stars, String(stats.stars)],
-    [localeText.githubStats.followers, String(stats.followers)],
-    [localeText.githubStats.updated, stats.lastUpdateLabel],
-  ].forEach(([label, value]) => {
-    refs.githubStats.appendChild(createStatCard(label, value));
-  });
-
-  const featured = document.createElement('article');
-  featured.className = 'github-featured';
-  featured.innerHTML = `
-    <div class="github-featured-head">
-      <div>
-        <p class="meta">${escapeHTML(localeText.githubStats.featured)}</p>
-        <h3 class="github-featured-title">${escapeHTML(stats.featuredRepo.name)}</h3>
-      </div>
-      <a class="github-featured-link" href="${escapeHTML(stats.featuredRepo.url)}" target="_blank" rel="noreferrer noopener">Abrir</a>
-    </div>
-    <p class="github-featured-body">${escapeHTML(stats.featuredRepo.description)}</p>
-    <div class="github-featured-meta">
-      ${stats.featuredRepo.language ? `<span class="github-pill">${escapeHTML(stats.featuredRepo.language)}</span>` : ''}
-      <span class="github-pill">⭐ ${stats.featuredRepo.stars}</span>
-      <span class="github-pill">Forks ${stats.featuredRepo.forks}</span>
-      <span class="github-pill">Actualizado ${escapeHTML(stats.featuredRepo.updatedAtLabel)}</span>
-    </div>
-  `;
-  refs.githubStats.appendChild(featured);
-}
-
-// Consulta API publica de GitHub y aplica cache temporal en localStorage.
-async function loadGithubStats(username) {
-  const cached = loadGithubStatsCache();
-  if (cached && Date.now() - cached.cachedAt < GITHUB_STATS_CACHE_MINUTES * 60 * 1000) {
-    return cached.stats;
-  }
-
-  const [userResponse, reposResponse] = await Promise.all([
-    fetch(`https://api.github.com/users/${encodeURIComponent(username)}`, {
-      headers: { Accept: 'application/vnd.github+json' },
-    }),
-    fetch(`https://api.github.com/users/${encodeURIComponent(username)}/repos?sort=updated&per_page=20&type=owner`, {
-      headers: { Accept: 'application/vnd.github+json' },
-    }),
-  ]);
-
-  if (!userResponse.ok || !reposResponse.ok) {
-    throw new Error('No se pudo consultar la API de GitHub');
-  }
-
-  const user = await userResponse.json();
-  const repos = await reposResponse.json();
-  const stats = normalizeGithubStats(user, repos);
-
-  saveGithubStatsCache(stats);
-  return stats;
-}
-
-// Normaliza payload de GitHub en un modelo listo para UI.
-function normalizeGithubStats(user, repos) {
-  const repoList = Array.isArray(repos) ? repos : [];
-  const featuredRepoSource = repoList
-    .filter((repo) => !repo.fork)
-    .sort((left, right) => (right.stargazers_count || 0) - (left.stargazers_count || 0) || new Date(right.updated_at).getTime() - new Date(left.updated_at).getTime())[0]
-    || repoList[0]
-    || null;
-
-  const stars = repoList.reduce((total, repo) => total + Number(repo.stargazers_count || 0), 0);
-
-  return {
-    publicRepos: Number(user.public_repos || repoList.length || 0),
-    stars,
-    followers: Number(user.followers || 0),
-    lastUpdateLabel: formatRelativeDate(user.updated_at || new Date().toISOString()),
-    featuredRepo: normalizeFeaturedRepo(featuredRepoSource),
-  };
-}
-
-// Elige repositorio destacado o construye fallback amigable.
-function normalizeFeaturedRepo(repo) {
-  if (!repo) {
-    return {
-      name: 'Sin repositorio destacado',
-      description: 'Crea un repositorio público para mostrar actividad en vivo.',
-      url: `https://github.com/${GITHUB_USERNAME}`,
-      language: '',
-      stars: 0,
-      forks: 0,
-      updatedAtLabel: 'hoy',
-    };
-  }
-
-  return {
-    name: repo.name || 'Repositorio sin nombre',
-    description: repo.description || 'Sin descripción disponible.',
-    url: repo.html_url || `https://github.com/${GITHUB_USERNAME}`,
-    language: repo.language || '',
-    stars: Number(repo.stargazers_count || 0),
-    forks: Number(repo.forks_count || 0),
-    updatedAtLabel: formatRelativeDate(repo.updated_at || new Date().toISOString()),
-  };
-}
-
-// Lectura tolerante a fallos de cache de estadisticas GitHub.
-function loadGithubStatsCache() {
-  try {
-    const raw = localStorage.getItem(GITHUB_STATS_CACHE_KEY);
-    if (!raw) {
-      return null;
-    }
-
-    const parsed = JSON.parse(raw);
-    if (!parsed || typeof parsed !== 'object') {
-      return null;
-    }
-
-    return parsed;
-  } catch (error) {
-    return null;
-  }
-}
-
-// Persistencia best-effort del cache GitHub.
-function saveGithubStatsCache(stats) {
-  try {
-    localStorage.setItem(
-      GITHUB_STATS_CACHE_KEY,
-      JSON.stringify({ cachedAt: Date.now(), stats })
-    );
-  } catch (error) {
-    return;
-  }
+  githubApi.render(stats, error);
 }
 
 // Convierte fecha ISO a etiqueta relativa en espanol.
 function formatRelativeDate(isoDate) {
-  const date = new Date(isoDate);
-  if (Number.isNaN(date.getTime())) {
-    return 'sin fecha';
-  }
-
-  const now = new Date();
-  const diffInDays = Math.max(0, Math.round((now.getTime() - date.getTime()) / (1000 * 60 * 60 * 24)));
-
-  if (diffInDays === 0) {
-    return 'hoy';
-  }
-
-  if (diffInDays === 1) {
-    return 'hace 1 día';
-  }
-
-  if (diffInDays < 30) {
-    return `hace ${diffInDays} días`;
-  }
-
-  const months = Math.round(diffInDays / 30);
-  if (months === 1) {
-    return 'hace 1 mes';
-  }
-
-  return `hace ${months} meses`;
+  return utilFormatRelativeDate(isoDate);
 }
 
 // Parsea lineas con formato: campo | campo | campo.
 function parsePipeLines(text, keys) {
-  const lines = text
-    .split('\n')
-    .map((line) => line.trim())
-    .filter(Boolean);
-
-  const result = [];
-  for (const line of lines) {
-    const parts = line.split('|').map((item) => item.trim());
-    if (parts.length !== keys.length || parts.some((value) => !value)) {
-      return null;
-    }
-
-    const entry = {};
-    keys.forEach((key, index) => {
-      entry[key] = parts[index];
-    });
-    result.push(entry);
-  }
-
-  return result;
+  return utilParsePipeLines(text, keys);
 }
 
 // Convierte telefono libre en href tel compatible con moviles.
 function buildPhoneHref(phone) {
-  const sanitized = String(phone || '').replace(/[^\d+]/g, '');
-  return sanitized ? `tel:${sanitized}` : '';
+  return utilBuildPhoneHref(phone);
 }
 
 // Mantiene visual del telefono mientras se sanitiza el enlace.
 function formatPhoneDisplay(phone) {
-  return String(phone || '').trim();
+  return utilFormatPhoneDisplay(phone);
 }
 
 // Observer de interseccion para animaciones reveal por scroll.
@@ -1519,65 +1255,20 @@ function initReveal() {
 
 // Escape defensivo para interpolaciones HTML seguras.
 function escapeHTML(value) {
-  return String(value)
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;')
-    .replaceAll('"', '&quot;')
-    .replaceAll("'", '&#39;');
+  return utilEscapeHTML(value);
 }
 
 // Permite configurar Auth0 con dominio corto o completo.
 function normalizeAuth0Domain(domain) {
-  const clean = String(domain).trim();
-  if (!clean) {
-    return '';
-  }
-
-  if (clean.includes('.')) {
-    return clean;
-  }
-
-  return `${clean}.auth0.com`;
+  return utilNormalizeAuth0Domain(domain);
 }
 
 // Completa callbacks de redirect de Auth0 y reabre admin si habia intencion previa.
 async function initializeAuthFlow() {
-  const client = await getAuth0Client();
-  if (!client) {
-    return;
-  }
-
-  const search = new URLSearchParams(window.location.search);
-  const hasAuthParams = search.has('code') && search.has('state');
-
-  if (hasAuthParams) {
-    try {
-      await client.handleRedirectCallback();
-      window.history.replaceState({}, document.title, window.location.pathname);
-    } catch (error) {
-      admin.authError.textContent = getAuthErrorMessage(error);
-    }
-  }
-
-  const shouldOpenAdmin = sessionStorage.getItem(AUTH_INTENT_KEY) === 'open-admin';
-  if (shouldOpenAdmin && (await client.isAuthenticated())) {
-    sessionStorage.removeItem(AUTH_INTENT_KEY);
-    closeAuthModal();
-    openAdminPanel();
-  }
+  return authApi.initializeAuthFlow();
 }
 
 // Traduce errores comunes de Auth0 a mensajes mas accionables.
 function getAuthErrorMessage(error) {
-  const message = String(error?.message || error?.error_description || '').toLowerCase();
-  if (message.includes('callback url mismatch') || message.includes('redirect_uri')) {
-    return 'Error de callback en Auth0. Revisa Allowed Callback URLs.';
-  }
-
-  if (message.includes('access_denied')) {
-    return 'Acceso denegado por Auth0 o por la conexion social configurada.';
-  }
-
-  return 'No se pudo iniciar sesion con Auth0.';
+  return authApi.getAuthErrorMessage(error);
 }
