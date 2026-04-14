@@ -896,7 +896,9 @@ function generateATSFriendlyHTML(content, labels = {}) {
   if (content.certifications && content.certifications.length > 0) {
     sections.push(`<p style="margin:0 0 2px 0; font-size:10px; font-weight:bold;">${finalLabels.certifications}</p>`);
     content.certifications.forEach((item) => {
-      sections.push(`<p style="margin:0 0 2px 0; font-size:10px;">- ${escapeHTML(item.name)} - ${escapeHTML(item.issuer)} (${escapeHTML(item.year)})</p>`);
+      const percentage = item.percentage && item.percentage < 100 ? ` - ${item.percentage}% complete` : '';
+      sections.push(`<p style="margin:0 0 2px 0; font-size:10px;">- ${escapeHTML(item.name)}</p>`);
+      sections.push(`<p style="margin:0 0 4px 10px; font-size:9px;">${escapeHTML(item.issuer)} (${escapeHTML(item.year)})${percentage}</p>`);
     });
     sections.push(`<p style="margin:0 0 12px 0;"></p>`);
   }
@@ -944,10 +946,13 @@ function generateATSFriendlyHTML(content, labels = {}) {
 
   // Perfiles sociales
   sections.push(`<p style="margin:0 0 2px 0; font-size:10px; font-weight:bold;">${finalLabels.socialProfiles}</p>`);
-  sections.push(`<p style="margin:0 0 0 0; font-size:10px;">
-    LinkedIn: ${content.social.linkedin || 'N/A'} | 
-    GitHub: ${content.social.github || 'N/A'} | 
-    Portfolio: ${content.social.portfolio || 'N/A'}
+  const socialLinks = [];
+  if (content.social.linkedin) socialLinks.push(`LinkedIn: ${content.social.linkedin}`);
+  if (content.social.github) socialLinks.push(`GitHub: ${content.social.github}`);
+  if (content.social.portfolio) socialLinks.push(`Portfolio: ${content.social.portfolio}`);
+  if (content.social.twitter) socialLinks.push(`Twitter: ${content.social.twitter}`);
+  sections.push(`<p style="margin:0 0 12px 0; font-size:10px;">
+    ${socialLinks.length > 0 ? socialLinks.join(' | ') : 'N/A'}
   </p>`);
 
   const html = `
