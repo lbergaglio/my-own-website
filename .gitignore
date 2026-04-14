@@ -2,3 +2,6 @@
 .env
 /config.js
 ARCHITECTURE.md
+node_modules
+package-lock.json
+.package_lock.json
