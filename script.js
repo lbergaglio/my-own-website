@@ -831,18 +831,187 @@ function generateATSCVText(content, labels = {}) {
   ].join('\n');
 }
 
-function downloadATSText(content, labels) {
+// Genera HTML ATS-friendly limpio y lineal sin estructuras complejas
+function generateATSFriendlyHTML(content, labels = {}) {
+  const defaultLabels = {
+    summary: 'SUMMARY',
+    skills: 'SKILLS',
+    experience: 'EXPERIENCE',
+    certifications: 'CERTIFICATIONS',
+    projects: 'PROJECTS',
+    contactMessage: 'CONTACT MESSAGE',
+    socialProfiles: 'SOCIAL PROFILES',
+    location: 'Location',
+    email: 'Email',
+    phone: 'Phone',
+    languages: 'Languages',
+  };
+
+  const finalLabels = { ...defaultLabels, ...labels };
+  
+  // Construir secciones con formato simple y lineal
+  const sections = [];
+  
+  // Encabezado
+  sections.push(`<h1 style="margin:0 0 4px 0; font-size:18px; font-weight:bold;">${escapeHTML(content.name)}</h1>`);
+  sections.push(`<p style="margin:0 0 2px 0; font-size:12px;">${escapeHTML(content.role)}</p>`);
+  if (content.badge) {
+    sections.push(`<p style="margin:0 0 12px 0; font-size:10px;">${escapeHTML(content.badge)}</p>`);
+  } else {
+    sections.push(`<p style="margin:0 0 12px 0;"></p>`);
+  }
+
+  // Información de contacto
+  sections.push(`<p style="margin:0 0 2px 0; font-size:10px; font-weight:bold;">${finalLabels.contactInfo}</p>`);
+  sections.push(`<p style="margin:0 0 12px 0; font-size:10px;">
+    ${finalLabels.location}: ${escapeHTML(content.location)} | 
+    ${finalLabels.email}: ${escapeHTML(content.email)} | 
+    ${finalLabels.phone}: ${escapeHTML(content.phone)} | 
+    ${finalLabels.languages}: ${escapeHTML(content.languages)}
+  </p>`);
+
+  // Resumen
+  if (content.summary) {
+    sections.push(`<p style="margin:0 0 2px 0; font-size:10px; font-weight:bold;">${finalLabels.summary}</p>`);
+    sections.push(`<p style="margin:0 0 12px 0; font-size:10px;">${escapeHTML(content.summary)}</p>`);
+  }
+
+  // Acerca de
+  if (content.about) {
+    sections.push(`<p style="margin:0 0 2px 0; font-size:10px; font-weight:bold;">ABOUT</p>`);
+    sections.push(`<p style="margin:0 0 12px 0; font-size:10px;">${escapeHTML(content.about)}</p>`);
+  }
+
+  // Experiencia
+  if (content.experience && content.experience.length > 0) {
+    sections.push(`<p style="margin:0 0 2px 0; font-size:10px; font-weight:bold;">${finalLabels.experience}</p>`);
+    content.experience.forEach((item) => {
+      sections.push(`<p style="margin:0 0 1px 0; font-size:10px;"><strong>${escapeHTML(item.title)}</strong> (${escapeHTML(item.period)})</p>`);
+      sections.push(`<p style="margin:0 0 8px 10px; font-size:10px;">${escapeHTML(item.description)}</p>`);
+    });
+    sections.push(`<p style="margin:0 0 12px 0;"></p>`);
+  }
+
+  // Certificaciones
+  if (content.certifications && content.certifications.length > 0) {
+    sections.push(`<p style="margin:0 0 2px 0; font-size:10px; font-weight:bold;">${finalLabels.certifications}</p>`);
+    content.certifications.forEach((item) => {
+      sections.push(`<p style="margin:0 0 2px 0; font-size:10px;">- ${escapeHTML(item.name)} - ${escapeHTML(item.issuer)} (${escapeHTML(item.year)})</p>`);
+    });
+    sections.push(`<p style="margin:0 0 12px 0;"></p>`);
+  }
+
+  // Proyectos
+  if (content.projects && content.projects.length > 0) {
+    sections.push(`<p style="margin:0 0 2px 0; font-size:10px; font-weight:bold;">${finalLabels.projects}</p>`);
+    content.projects.forEach((item) => {
+      sections.push(`<p style="margin:0 0 1px 0; font-size:10px;"><strong>${escapeHTML(item.title)}</strong></p>`);
+      sections.push(`<p style="margin:0 0 1px 0; font-size:10px;">${escapeHTML(item.description)}</p>`);
+      sections.push(`<p style="margin:0 0 8px 10px; font-size:10px;"><strong>Stack:</strong> ${escapeHTML(item.stack || '')}</p>`);
+    });
+    sections.push(`<p style="margin:0 0 12px 0;"></p>`);
+  }
+
+  // Habilidades
+  if (content.skills && content.skills.length > 0) {
+    sections.push(`<p style="margin:0 0 2px 0; font-size:10px; font-weight:bold;">${finalLabels.skills}</p>`);
+    sections.push(`<p style="margin:0 0 12px 0; font-size:10px;">${content.skills.join(', ')}</p>`);
+  }
+
+  // Palabras clave
+  const keywordSet = new Set();
+  content.skills.forEach((skill) => keywordSet.add(String(skill || '').trim()));
+  if (content.projects) {
+    content.projects.forEach((project) => {
+      String(project.stack || '')
+        .split(/[;,/]+/)
+        .map((part) => part.trim())
+        .filter(Boolean)
+        .forEach((part) => keywordSet.add(part));
+    });
+  }
+  const keywords = Array.from(keywordSet).filter(Boolean).join(', ');
+  if (keywords) {
+    sections.push(`<p style="margin:0 0 2px 0; font-size:10px; font-weight:bold;">KEYWORDS</p>`);
+    sections.push(`<p style="margin:0 0 12px 0; font-size:10px;">${escapeHTML(keywords)}</p>`);
+  }
+
+  // Mensaje de contacto
+  if (content.contactMessage) {
+    sections.push(`<p style="margin:0 0 2px 0; font-size:10px; font-weight:bold;">${finalLabels.contactMessage}</p>`);
+    sections.push(`<p style="margin:0 0 12px 0; font-size:10px;">${escapeHTML(content.contactMessage)}</p>`);
+  }
+
+  // Perfiles sociales
+  sections.push(`<p style="margin:0 0 2px 0; font-size:10px; font-weight:bold;">${finalLabels.socialProfiles}</p>`);
+  sections.push(`<p style="margin:0 0 0 0; font-size:10px;">
+    LinkedIn: ${content.social.linkedin || 'N/A'} | 
+    GitHub: ${content.social.github || 'N/A'} | 
+    Portfolio: ${content.social.portfolio || 'N/A'}
+  </p>`);
+
+  const html = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="UTF-8"/>
+      <title>${escapeHTML(content.name)} - CV ATS Friendly</title>
+      <style>
+        * { margin: 0; padding: 0; }
+        body {
+          font-family: 'Arial', 'Helvetica', sans-serif;
+          font-size: 10pt;
+          line-height: 1.4;
+          color: #000;
+          background: #fff;
+          padding: 20mm 15mm;
+        }
+        h1, p { margin: 0; font-weight: normal; }
+        h1 { font-size: 14pt; padding-bottom: 4px; }
+        strong { font-weight: bold; }
+      </style>
+    </head>
+    <body>
+      ${sections.join('')}
+    </body>
+    </html>
+  `;
+
+  return html;
+}
+
+async function downloadATSPDF(content, labels) {
   const localeSuffix = currentLocale === 'en' ? 'EN' : 'ES';
   const safeName = content.name.replace(/\s+/g, '_');
-  const filename = `${safeName}_CV_ATS_${localeSuffix}.txt`;
-  const text = generateATSCVText(content, labels);
-  const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = filename;
-  a.click();
-  URL.revokeObjectURL(url);
+  const filename = `${safeName}_CV_ATS_${localeSuffix}.pdf`;
+  
+  const html = generateATSFriendlyHTML(content, labels);
+  const element = document.createElement('div');
+  element.innerHTML = html;
+  refs.pdfContainer.appendChild(element);
+
+  try {
+    const opt = {
+      margin: [10, 10, 10, 10],
+      filename: filename,
+      image: { type: 'jpeg', quality: 0.98 },
+      html2canvas: { scale: 1.25, useCORS: true },
+      jsPDF: { orientation: 'portrait', unit: 'mm', format: 'a4' },
+      pagebreak: { mode: 'avoid', avoid: ['p'] },
+    };
+
+    await html2pdf().set(opt).from(element).save();
+  } catch (error) {
+    console.error('Error downloading ATS PDF:', error);
+    alert('Could not download ATS CV. Please try again.');
+  } finally {
+    refs.pdfContainer.removeChild(element);
+  }
+}
+
+function downloadATSText(content, labels) {
+  // Mantener para compatibilidad, pero usar downloadATSPDF
+  return downloadATSPDF(content, labels);
 }
 
 async function downloadCVPDF(format) {
@@ -855,7 +1024,7 @@ async function downloadCVPDF(format) {
   pdfLabels.atsMissing = localeText.admin.atsMissing;
   pdfLabels.atsSuggestions = localeText.admin.atsSuggestions;
   if (format === 'ats') {
-    downloadATSText(content, pdfLabels);
+    await downloadATSPDF(content, pdfLabels);
     return;
   }
 
