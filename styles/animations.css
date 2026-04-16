@@ -1,0 +1,100 @@
+/* ===================================
+   ANIMACIONES Y TRANSICIONES
+   Efectos visuales y animaciones
+   =================================== */
+
+/* Animación reveal por scroll */
+.reveal {
+  opacity: 0;
+  transform: translateY(16px);
+  transition: opacity 0.65s ease, transform 0.65s ease;
+}
+
+.reveal.visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* Transiciones globales */
+a,
+button,
+input,
+textarea,
+select {
+  transition: color 0.2s ease, background-color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
+}
+
+/* Efectos hover globales */
+button:hover:not(:disabled),
+.btn:hover {
+  transform: translateY(-1px);
+}
+
+/* Focus states accesibles */
+button:focus,
+input:focus,
+textarea:focus,
+select:focus,
+a:focus {
+  outline: 2px solid var(--blue);
+  outline-offset: 2px;
+}
+
+/* Disable states */
+button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* Smooth transitions para cambios de estado */
+.modal-enter {
+  animation: fadeIn 0.3s ease;
+}
+
+.modal-exit {
+  animation: fadeOut 0.3s ease;
+}
+
+@keyframes fadeOut {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+/* Loading state */
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+.loading {
+  animation: pulse 2s ease-in-out infinite;
+}
+
+/* Skeleton loader */
+@keyframes shimmer {
+  0% {
+    background-position: -1200px 0;
+  }
+  100% {
+    background-position: 1200px 0;
+  }
+}
+
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.1) 8%,
+    rgba(255, 255, 255, 0.2) 18%,
+    rgba(255, 255, 255, 0.1) 33%
+  );
+  background-size: 800px 104px;
+  animation: shimmer 2s infinite;
+}

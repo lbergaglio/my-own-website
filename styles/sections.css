@@ -1,0 +1,32 @@
+/* ===================================
+   SECCIONES DE CONTENIDO
+   Experiencia, certificaciones, proyectos, skills
+   =================================== */
+
+/* Footer */
+.footer {
+  padding-top: 72px;
+  padding-bottom: 50px;
+}
+
+/* Skills */
+.skill-cloud {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 9px;
+}
+
+.skill-item {
+  border: 1px solid var(--line);
+  background: #fff;
+  padding: 9px 13px;
+  border-radius: 999px;
+  font-weight: 700;
+  color: var(--ink-soft);
+  transition: border-color 0.2s ease, background 0.2s ease;
+}
+
+.skill-item:hover {
+  border-color: var(--blue);
+  background: #f8fbff;
+}

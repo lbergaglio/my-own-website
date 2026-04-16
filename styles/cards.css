@@ -1,0 +1,241 @@
+/* ===================================
+   CARDS Y TARJETAS
+   Componentes de contenedor reutilizables
+   =================================== */
+
+/* Tarjeta genérica */
+.card {
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  padding: 20px;
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(6px);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 20px 50px rgba(15, 39, 80, 0.18);
+}
+
+.hero-panel {
+  position: relative;
+  width: min(100%, 430px);
+  justify-self: end;
+  background: linear-gradient(170deg, rgba(255, 255, 255, 0.94), rgba(248, 251, 255, 0.88));
+  overflow: hidden;
+  border-radius: 18px;
+  padding: 20px;
+  box-shadow: var(--shadow);
+}
+
+.hero-panel::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto;
+  height: 4px;
+  background: linear-gradient(90deg, var(--blue), var(--teal));
+}
+
+/* Facts list dentro de cards */
+.facts-list {
+  margin: 14px 0 0;
+  display: grid;
+  gap: 10px;
+}
+
+.fact-item {
+  margin: 0;
+  display: grid;
+  grid-template-columns: 112px 1fr;
+  gap: 10px;
+  align-items: baseline;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--line);
+}
+
+.fact-item:last-child {
+  border-bottom: 0;
+  padding-bottom: 0;
+}
+
+/* Tarjetas de certificación */
+.certification-card {
+  position: relative;
+  display: grid;
+  gap: 10px;
+  padding-top: 18px;
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 16px;
+  box-shadow: 0 4px 12px rgba(15, 39, 80, 0.06);
+}
+
+.certification-head,
+.certification-foot {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.certification-year {
+  display: inline-flex;
+  align-items: center;
+  margin-bottom: 8px;
+  font-size: 0.78rem;
+  font-weight: 800;
+  color: var(--blue);
+  border: 1px solid rgba(16, 103, 216, 0.22);
+  border-radius: 999px;
+  padding: 4px 9px;
+  background: rgba(255, 255, 255, 0.82);
+}
+
+.certification-track {
+  position: relative;
+  width: 100%;
+  height: 10px;
+  border-radius: 999px;
+  background: rgba(21, 32, 45, 0.08);
+  overflow: hidden;
+}
+
+.certification-fill {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--blue), #43a2ff);
+  transition: width 0.3s ease;
+}
+
+.certification-fill.is-complete {
+  background: linear-gradient(90deg, var(--teal), #3ec7c0);
+}
+
+.certification-percent {
+  font-family: "Space Grotesk", sans-serif;
+  font-weight: 700;
+  color: var(--blue);
+  white-space: nowrap;
+}
+
+.certification-status,
+.certification-progress-label {
+  font-size: 0.86rem;
+  font-weight: 700;
+}
+
+.certification-status {
+  color: var(--ink-soft);
+}
+
+.certification-status.is-complete {
+  color: var(--teal);
+}
+
+.certification-status.is-progress {
+  color: var(--blue);
+}
+
+.certification-progress-label {
+  color: var(--ink-soft);
+}
+
+.certification-issuer {
+  margin-top: 8px;
+  color: var(--ink-soft);
+  font-size: 0.85rem;
+}
+
+/* GitHub cards */
+.github-stat,
+.github-featured {
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(6px);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.github-stat:hover,
+.github-featured:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 20px 50px rgba(15, 39, 80, 0.18);
+}
+
+.github-stat {
+  padding: 18px;
+}
+
+.github-stat-value {
+  display: block;
+  margin-top: 8px;
+  font-family: "Space Grotesk", sans-serif;
+  font-size: clamp(1.45rem, 2.8vw, 2.2rem);
+  color: var(--ink);
+}
+
+.github-stat-label {
+  color: var(--ink-soft);
+  font-weight: 700;
+  font-size: 0.88rem;
+}
+
+.github-featured {
+  padding: 20px;
+}
+
+.github-featured-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  margin-bottom: 12px;
+}
+
+.github-featured-title {
+  margin: 0;
+  font-size: 1.15rem;
+}
+
+.github-featured-link {
+  color: var(--blue);
+  text-decoration: none;
+  font-weight: 800;
+  white-space: nowrap;
+  transition: color 0.2s ease;
+}
+
+.github-featured-link:hover {
+  text-decoration: underline;
+  color: #257ee8;
+}
+
+.github-featured-body {
+  margin: 0;
+  color: var(--ink-soft);
+  line-height: 1.7;
+}
+
+.github-featured-meta {
+  margin-top: 14px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  color: var(--ink-soft);
+  font-size: 0.9rem;
+}
+
+.github-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.github-featured {
+  grid-column: span 4;
+}

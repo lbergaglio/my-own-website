@@ -14,8 +14,12 @@ import {
 } from './frontend/ats-engine.js';
 import { create as createAtsPanel } from './frontend/ats-panel.js';
 import { create as createRenderModule } from './frontend/render-module.js';
+import { create as createContentStateModule } from './frontend/content-state-module.js';
+import { create as createI18nModule } from './frontend/i18n-module.js';
+import { create as createPdfExportModule } from './frontend/pdf-export-module.js';
 import { create as createGithubModule } from './frontend/github-module.js';
 import { create as createAuthModule } from './frontend/auth-module.js';
+import { create as createAdminFlowModule } from './frontend/admin-flow-module.js';
 
 // Claves de persistencia local y endpoint del CMS.
 const STORAGE_KEY = 'cv-content-v1';
@@ -63,6 +67,7 @@ const UI_TEXT = {
       projects: 'Ver proyectos',
       downloadCV: 'Descargar CV',
       downloadATS: 'Descargar ATS (TXT)',
+      downloadCoverLetter: 'Descargar cover letter',
     },
     panel: {
       contactInfo: 'Informacion de contacto',
@@ -160,6 +165,7 @@ const UI_TEXT = {
       projects: 'View projects',
       downloadCV: 'Download CV',
       downloadATS: 'Download ATS (TXT)',
+      downloadCoverLetter: 'Download cover letter',
     },
     panel: {
       contactInfo: 'Contact information',
@@ -273,11 +279,9 @@ const refs = {
   year: document.getElementById('year'),
   downloadCVNormalBtn: document.getElementById('download-cv-normal'),
   downloadCVATSBtn: document.getElementById('download-cv-ats'),
+  downloadCoverLetterBtn: document.getElementById('download-cover-letter'),
   pdfContainer: document.getElementById('pdf-container'),
 };
-
-let currentLocale = getInitialLocale();
-let translationRunId = 0;
 
 // Referencias al panel administrativo y modal de login.
 const admin = {
@@ -300,11 +304,39 @@ const admin = {
   atsAnalysisResult: document.getElementById('ats-analysis-result'),
 };
 
+const contentStateApi = createContentStateModule({
+  admin,
+  storageKey: STORAGE_KEY,
+  apiEndpoint: API_ENDPOINT,
+  defaultContent,
+  normalizeContent,
+  parsePipeLines: utilParsePipeLines,
+  buildAuthHeaders: () => buildAuthHeaders(),
+});
+
+let cvContent = contentStateApi.loadCachedContent() || structuredClone(defaultContent);
+let translatedContent = structuredClone(cvContent);
+
+const i18nApi = createI18nModule({
+  refs,
+  uiText: UI_TEXT,
+  localeKey: LOCALE_KEY,
+  translationCacheKey: TRANSLATION_CACHE_KEY,
+  supportedLocales: SUPPORTED_LOCALES,
+  readLocaleValue: utilReadLocaleValue,
+  refreshATSAnalysisPreview: () => refreshATSAnalysisPreview(),
+  setTranslatedContent: (content) => {
+    translatedContent = content;
+  },
+});
+
+let currentLocale = i18nApi.getCurrentLocale();
+
 const atsPanelApi = createAtsPanel({
   admin,
   storageKey: ATS_JOB_DESCRIPTION_KEY,
   getCurrentLocale: () => currentLocale,
-  getLocaleText: () => UI_TEXT[currentLocale] || UI_TEXT.es,
+  getLocaleText: () => i18nApi.getLocaleText(),
   getContent: () => cvContent,
   buildAnalysis: (jobDescription, content) => buildATSAnalysis(jobDescription, content),
   escapeHTML: (value) => escapeHTML(value),
@@ -313,7 +345,7 @@ const atsPanelApi = createAtsPanel({
 
 const githubApi = createGithubModule({
   refs,
-  getLocaleText: () => UI_TEXT[currentLocale] || UI_TEXT.es,
+  getLocaleText: () => i18nApi.getLocaleText(),
   getCurrentLocale: () => currentLocale,
   getGithubUsername: () => GITHUB_USERNAME,
   getCacheMinutes: () => GITHUB_STATS_CACHE_MINUTES,
@@ -325,7 +357,7 @@ const githubApi = createGithubModule({
 const renderApi = createRenderModule({
   refs,
   admin,
-  getLocaleText: () => UI_TEXT[currentLocale] || UI_TEXT.es,
+  getLocaleText: () => i18nApi.getLocaleText(),
   getCurrentLocale: () => currentLocale,
   clampPercentage: (value) => clampPercentage(value),
   escapeHTML: (value) => escapeHTML(value),
@@ -339,6 +371,18 @@ const renderApi = createRenderModule({
       githubApi.renderSkeleton();
     }
   },
+});
+
+const pdfApi = createPdfExportModule({
+  refs,
+  escapeHTML: (value) => escapeHTML(value),
+  getCurrentLocale: () => currentLocale,
+  getLocaleText: () => i18nApi.getLocaleText(),
+  getContent: () => cvContent,
+  getTranslatedContent: () => translatedContent,
+  translateContentForLocale: (content, locale) => i18nApi.translateContentForLocale(content, locale),
+  promptText: (message, defaultValue) => window.prompt(message, defaultValue),
+  alertText: (message) => window.alert(message),
 });
 
 authApi = createAuthModule({
@@ -367,21 +411,35 @@ authApi = createAuthModule({
   },
 });
 
+const adminFlowApi = createAdminFlowModule({
+  admin,
+  authApi,
+  contentStateApi,
+  atsPanelApi,
+  renderApi,
+  cvContentRef: { current: cvContent },
+  defaultContent,
+  normalizeContent,
+  storageKey: STORAGE_KEY,
+  uiText: UI_TEXT,
+  buildAuthHeaders: () => buildAuthHeaders(),
+  alertText: (message) => window.alert(message),
+  getCurrentLocale: () => currentLocale,
+  refreshATSAnalysisPreview: () => refreshATSAnalysisPreview(),
+});
+
 // Cliente Auth0 lazy (promesa compartida para evitar multiples instancias).
 const auth0ClientPromise = createAuth0ClientInstance();
 
 // Estado en memoria del contenido actual del CV.
-let cvContent = loadCachedContent() || structuredClone(defaultContent);
-let translatedContent = structuredClone(cvContent);
-
 // Render inicial inmediato para reducir tiempo a primer contenido.
 applyStaticLocale(currentLocale, cvContent);
 bindLocaleActions();
 render(cvContent);
 populateForm(cvContent);
 initReveal();
-bindAdminActions();
-bindDownloadActions();
+adminFlowApi.bind();
+pdfApi.bind();
 void bootstrap();
 
 // Inicializacion asincronica: prioriza CMS remoto y luego auth/github.
@@ -399,94 +457,32 @@ async function bootstrap() {
 
 // Obtiene contenido desde API serverless.
 async function fetchRemoteContent() {
-  const response = await fetch(API_ENDPOINT, { headers: { Accept: 'application/json' } });
-  if (!response.ok) {
-    throw new Error('Failed to load content from API');
-  }
-
-  return normalizeContent(await response.json());
+  return contentStateApi.fetchRemoteContent();
 }
 
 // Estrategia de carga: remoto primero, cache/local como fallback.
 async function loadContent() {
-  try {
-    const remoteContent = await fetchRemoteContent();
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(remoteContent));
-    return remoteContent;
-  } catch (error) {
-    return loadCachedContent() || structuredClone(defaultContent);
-  }
+  return contentStateApi.loadContent();
 }
 
 // Lee cache local y la normaliza para evitar datos corruptos.
 function loadCachedContent() {
-  const raw = localStorage.getItem(STORAGE_KEY);
-  if (!raw) {
-    return null;
-  }
-
-  try {
-    const parsed = JSON.parse(raw);
-    return normalizeContent(parsed);
-  } catch (error) {
-    return null;
-  }
+  return contentStateApi.loadCachedContent();
 }
 
 // Determina el idioma inicial segun preferencia guardada o navegador.
 function getInitialLocale() {
-  const savedLocale = String(localStorage.getItem(LOCALE_KEY) || '').trim().toLowerCase();
-  if (SUPPORTED_LOCALES.includes(savedLocale)) {
-    return savedLocale;
-  }
-
-  const browserLocale = String(navigator.language || navigator.languages?.[0] || 'es').toLowerCase();
-  return browserLocale.startsWith('en') ? 'en' : 'es';
+  return i18nApi.getInitialLocale();
 }
 
 // Aplica textos estaticos de la interfaz segun el idioma activo.
 function applyStaticLocale(locale, content) {
-  const localeText = UI_TEXT[locale] || UI_TEXT.es;
-  refs.html.setAttribute('lang', locale);
-  syncLocaleSwitcher(locale);
-
-  // Traducir todos los elementos con data-i18n
-  const elements = document.querySelectorAll('[data-i18n]');
-  elements.forEach((element) => {
-    const key = element.getAttribute('data-i18n');
-    const value = readLocaleValue(localeText, key);
-    
-    if (value !== undefined && typeof value === 'string') {
-      element.textContent = value;
-    }
-  });
-
-  const placeholders = document.querySelectorAll('[data-i18n-placeholder]');
-  placeholders.forEach((element) => {
-    const key = element.getAttribute('data-i18n-placeholder');
-    const value = readLocaleValue(localeText, key);
-
-    if (value !== undefined && typeof value === 'string') {
-      element.setAttribute('placeholder', value);
-    }
-  });
-
-  if (refs.metaDescription) {
-    refs.metaDescription.setAttribute('content', localeText.description);
-  }
-
-  document.title = localeText.title.replace('{name}', content?.name || '');
-  localStorage.setItem(LOCALE_KEY, locale);
-  refreshATSAnalysisPreview();
+  return i18nApi.applyStaticLocale(locale, content);
 }
 
 // Mantiene el estado visual del selector visible sincronizado.
 function syncLocaleSwitcher(locale) {
-  refs.localeButtons.forEach((button) => {
-    const isActive = button.dataset.locale === locale;
-    button.classList.toggle('active', isActive);
-    button.setAttribute('aria-pressed', String(isActive));
-  });
+  return i18nApi.syncLocaleSwitcher(locale);
 }
 
 // Conecta los botones visibles del selector con el cambio de idioma.
@@ -498,11 +494,12 @@ function bindLocaleActions() {
         return;
       }
 
-      currentLocale = nextLocale;
+      currentLocale = i18nApi.setCurrentLocale(nextLocale);
       applyStaticLocale(currentLocale, cvContent);
       render(cvContent);
       populateForm(cvContent);
       void loadAndRenderGithubStats();
+      void localizeRenderedContent(cvContent);
     });
   });
 }
@@ -514,177 +511,20 @@ function readLocaleValue(source, key) {
 
 // Traduce el contenido dinamico renderizado cuando el idioma es distinto de espanol.
 async function localizeRenderedContent(content) {
-  if (currentLocale === 'es') {
-    return;
-  }
-
-  const runId = ++translationRunId;
-
-  try {
-    const translated = await translateContentForLocale(content, currentLocale);
-    if (runId !== translationRunId) {
-      return;
-    }
-
-    // Guardar contenido traducido para uso en descargas
+  const translated = await i18nApi.localizeRenderedContent(content, currentLocale);
+  if (translated) {
     translatedContent = translated;
-
-    refs.heroBadge.textContent = translated.badge;
-    refs.heroRole.textContent = translated.role;
-    refs.heroSummary.textContent = translated.summary;
-    refs.aboutText.textContent = translated.about;
-    refs.contactMessage.textContent = translated.contactMessage;
-
-    const experienceCards = refs.experienceList.querySelectorAll('article');
-    translated.experience.forEach((item, index) => {
-      const card = experienceCards[index];
-      if (!card) return;
-      const meta = card.querySelector('.meta');
-      const title = card.querySelector('h3');
-      const body = card.querySelector('.body-text');
-      if (meta) meta.textContent = item.period;
-      if (title) title.textContent = item.title;
-      if (body) body.textContent = item.description;
-    });
-
-    const certificationCards = refs.certificationsList.querySelectorAll('article');
-    translated.certifications.forEach((item, index) => {
-      const card = certificationCards[index];
-      if (!card) return;
-      const year = card.querySelector('.certification-year');
-      const title = card.querySelector('h3');
-      const body = card.querySelector('.certification-issuer');
-      if (year) year.textContent = item.year;
-      if (title) title.textContent = item.name;
-      if (body) body.textContent = item.issuer;
-    });
-
-    const projectCards = refs.projectList.querySelectorAll('article');
-    translated.projects.forEach((item, index) => {
-      const card = projectCards[index];
-      if (!card) return;
-      const title = card.querySelector('h3');
-      const body = card.querySelector('.body-text');
-      const stack = card.querySelector('.stack');
-      if (title) title.textContent = item.title;
-      if (body) body.textContent = item.description;
-      if (stack) stack.textContent = item.stack;
-    });
-
-    const skillItems = refs.skillsList.querySelectorAll('.skill-item');
-    translated.skills.forEach((skill, index) => {
-      const item = skillItems[index];
-      if (item) item.textContent = skill;
-    });
-  } catch (error) {
-    return;
   }
 }
 
 // Traduce los textos editables del CV con cache local y fallback transparente.
 async function translateContentForLocale(content, locale) {
-  if (locale === 'es') {
-    return content;
-  }
-
-  const translated = structuredClone(content);
-  translated.badge = await translateText(content.badge, locale);
-  translated.role = await translateText(content.role, locale);
-  translated.summary = await translateText(content.summary, locale);
-  translated.about = await translateText(content.about, locale);
-  translated.contactMessage = await translateText(content.contactMessage, locale);
-
-  translated.experience = await Promise.all(
-    content.experience.map(async (item) => ({
-      period: await translateText(item.period, locale),
-      title: await translateText(item.title, locale),
-      description: await translateText(item.description, locale),
-    }))
-  );
-
-  translated.certifications = await Promise.all(
-    content.certifications.map(async (item) => ({
-      name: await translateText(item.name, locale),
-      issuer: await translateText(item.issuer, locale),
-      year: item.year,
-      percentage: item.percentage,
-    }))
-  );
-
-  translated.projects = await Promise.all(
-    content.projects.map(async (item) => ({
-      title: await translateText(item.title, locale),
-      description: await translateText(item.description, locale),
-      stack: await translateText(item.stack, locale),
-    }))
-  );
-
-  translated.skills = await Promise.all(
-    content.skills.map((skill) => translateText(skill, locale))
-  );
-
-  return translated;
+  return i18nApi.translateContentForLocale(content, locale);
 }
 
 // Traduce una cadena con cache persistente y servicio publico de Google Translate.
 async function translateText(text, locale) {
-  const sourceText = String(text || '').trim();
-  if (!sourceText || locale === 'es') {
-    return sourceText;
-  }
-
-  const cacheKey = `${locale}::${sourceText}`;
-  const cached = readTranslationCache(cacheKey);
-  if (cached) {
-    return cached;
-  }
-
-  try {
-    const response = await fetch(
-      `https://translate.googleapis.com/translate_a/single?client=gtx&sl=es&tl=${encodeURIComponent(locale)}&dt=t&q=${encodeURIComponent(sourceText)}`
-    );
-
-    if (!response.ok) {
-      throw new Error('Translation request failed');
-    }
-
-    const data = await response.json();
-    const translated = Array.isArray(data)
-      ? data[0].map((segment) => segment[0]).join('')
-      : sourceText;
-
-    writeTranslationCache(cacheKey, translated);
-    return translated;
-  } catch (error) {
-    return sourceText;
-  }
-}
-
-// Cache simple para traducciones repetidas.
-function readTranslationCache(key) {
-  try {
-    const raw = localStorage.getItem(TRANSLATION_CACHE_KEY);
-    if (!raw) {
-      return '';
-    }
-
-    const parsed = JSON.parse(raw);
-    return parsed && typeof parsed[key] === 'string' ? parsed[key] : '';
-  } catch (error) {
-    return '';
-  }
-}
-
-// Guarda traducciones para evitar repetir llamadas externas.
-function writeTranslationCache(key, value) {
-  try {
-    const raw = localStorage.getItem(TRANSLATION_CACHE_KEY);
-    const parsed = raw ? JSON.parse(raw) : {};
-    parsed[key] = value;
-    localStorage.setItem(TRANSLATION_CACHE_KEY, JSON.stringify(parsed));
-  } catch (error) {
-    return;
-  }
+  return i18nApi.translateText(text, locale);
 }
 
 // Normaliza porcentaje para las barras de habilidad.
@@ -707,449 +547,20 @@ function populateForm(content) {
   renderApi.populateForm(content);
 }
 
-// Genera HTML para CV en formato visual con estilos
-function generateStyledCVHTML(content, labels = {}) {
-  const defaultLabels = {
-    aboutTitle: 'Sobre mí',
-    experienceTitle: 'Experiencia',
-    certificationsTitle: 'Certificaciones',
-    projectsTitle: 'Proyectos',
-    skillsTitle: 'Habilidades',
-    contactTitle: 'Contacto',
-    location: 'Ubicación',
-    email: 'Email',
-    phone: 'Teléfono',
-    languages: 'Idiomas',
-    stackLabel: 'Stack',
-  };
-  const finalLabels = { ...defaultLabels, ...labels };
-  const skills = content.skills.join(', ');
-  const certificationsHTML = content.certifications
-    .map((cert) => `<article class="pdf-item avoid-break"><strong>${escapeHTML(cert.name)}</strong><span>${escapeHTML(cert.issuer)} · ${escapeHTML(cert.year)}</span></article>`)
-    .join('');
-  const experienceHTML = content.experience
-    .map((exp) => `<article class="pdf-item avoid-break"><strong>${escapeHTML(exp.title)}</strong><span>${escapeHTML(exp.period)}</span><p>${escapeHTML(exp.description)}</p></article>`)
-    .join('');
-  const projectsHTML = content.projects
-    .map((proj) => `<article class="pdf-item avoid-break"><strong>${escapeHTML(proj.title)}</strong><span>${finalLabels.stackLabel}: ${escapeHTML(proj.stack)}</span><p>${escapeHTML(proj.description)}</p></article>`)
-    .join('');
-  const projectsSectionHTML = projectsHTML
-    ? `<section class="section avoid-break"><h2>${finalLabels.projectsTitle}</h2><div class="pdf-list">${projectsHTML}</div></section>`
-    : '';
-
-  return `<!DOCTYPE html><html><head><meta charset="UTF-8"/><title>${escapeHTML(content.name)} - CV</title><style>*{box-sizing:border-box}html,body{margin:0;padding:0}body{font-family:Arial,sans-serif;color:#243042;background:#fff;font-size:10.5px;line-height:1.28;padding:12mm 10mm 10mm}.page{max-width:100%;margin:0 auto}.header{display:grid;grid-template-columns:1.4fr 1fr;gap:8px 16px;align-items:start;padding-bottom:8px;border-bottom:1px solid #d5deea;margin-bottom:10px;page-break-inside:avoid}h1{font-size:20px;line-height:1.05;margin:0 0 4px;font-family:Arial,sans-serif}.role{font-size:11px;font-weight:700;color:#1067d8;margin:0 0 6px}.badge{display:inline-block;background:#e8f0fe;color:#1067d8;border-radius:999px;padding:3px 8px;font-size:9px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;margin-bottom:6px}.summary{margin:0;color:#516178;max-width:62ch}.contact-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px 10px;font-size:9.5px;color:#516178}.contact-chip{display:flex;gap:4px;min-width:0}.contact-chip strong{color:#243042;white-space:nowrap}.main-grid{display:grid;grid-template-columns:1fr 1.1fr;gap:8px 14px;align-items:start}.section{background:#fff;border:1px solid #dfe7f1;border-radius:10px;padding:8px 9px;margin:0 0 8px;page-break-inside:avoid}.section h2{font-size:11px;line-height:1.1;margin:0 0 6px;padding:0 0 5px;border-bottom:1px solid #dfe7f1;text-transform:uppercase;letter-spacing:.04em;color:#1067d8;page-break-after:avoid}.section p{margin:0}.section .muted{color:#516178}.stack-inline{color:#516178;font-size:9.5px}.skill-list{display:flex;flex-wrap:wrap;gap:4px}.skill-pill{border:1px solid #dfe7f1;border-radius:999px;padding:3px 7px;font-size:9px;line-height:1.1;background:#f8fbff;color:#243042}.pdf-list{display:grid;gap:6px}.pdf-item{display:grid;gap:1px;padding-bottom:6px;border-bottom:1px dashed #e2e8f2}.pdf-item:last-child{padding-bottom:0;border-bottom:0}.pdf-item strong{font-size:10px;color:#243042}.pdf-item span,.pdf-item p{font-size:9.3px;color:#516178}.pdf-item p{line-height:1.22}.avoid-break{break-inside:avoid;page-break-inside:avoid}.compact-contact p{margin:0}.compact-links a{color:#1067d8;text-decoration:none}@media print{body{padding:7mm 7mm 6mm}.section,.header,.avoid-break{break-inside:avoid;page-break-inside:avoid}.page{page-break-after:avoid}}</style></head><body><div class="page"><div class="header avoid-break"><div><div class="badge">${escapeHTML(content.badge)}</div><h1>${escapeHTML(content.name)}</h1><p class="role">${escapeHTML(content.role)}</p><p class="summary">${escapeHTML(content.summary)}</p></div><div class="compact-contact contact-grid"><div class="contact-chip"><strong>${finalLabels.location}:</strong><span>${escapeHTML(content.location)}</span></div><div class="contact-chip"><strong>${finalLabels.email}:</strong><span><a href="mailto:${escapeHTML(content.email)}">${escapeHTML(content.email)}</a></span></div><div class="contact-chip"><strong>${finalLabels.phone}:</strong><span>${escapeHTML(content.phone)}</span></div><div class="contact-chip"><strong>${finalLabels.languages}:</strong><span>${escapeHTML(content.languages)}</span></div></div></div><div class="main-grid"><div><section class="section avoid-break"><h2>${finalLabels.aboutTitle}</h2><p>${escapeHTML(content.about)}</p></section><section class="section avoid-break"><h2>${finalLabels.skillsTitle}</h2><div class="skill-list">${content.skills.map((skill) => `<span class="skill-pill">${escapeHTML(skill)}</span>`).join('')}</div></section><section class="section avoid-break"><h2>${finalLabels.contactTitle}</h2><p>${escapeHTML(content.contactMessage)}</p><p class="compact-links">${content.social.linkedin ? `<a href="${escapeHTML(content.social.linkedin)}" target="_blank" rel="noreferrer noopener">LinkedIn</a> · ` : ''}${content.social.github ? `<a href="${escapeHTML(content.social.github)}" target="_blank" rel="noreferrer noopener">GitHub</a> · ` : ''}${content.social.portfolio ? `<a href="${escapeHTML(content.social.portfolio)}" target="_blank" rel="noreferrer noopener">Portfolio</a>` : ''}</p></section></div><div><section class="section avoid-break"><h2>${finalLabels.experienceTitle}</h2><div class="pdf-list">${experienceHTML}</div></section><section class="section avoid-break"><h2>${finalLabels.certificationsTitle}</h2><div class="pdf-list">${certificationsHTML}</div></section>${projectsSectionHTML}</div></div></div></body></html>`;
+function downloadCVPDF(format) {
+  return pdfApi.downloadCVPDF(format);
 }
 
-function generateATSCVHTML(content, labels = {}) {
-  const defaultLabels = {
-    contactInfo: 'CONTACT INFORMATION', location: 'Location', email: 'Email', phone: 'Phone',
-    languages: 'Languages', summary: 'SUMMARY', about: 'ABOUT', experience: 'EXPERIENCE',
-    certifications: 'CERTIFICATIONS', projects: 'PROJECTS', skills: 'SKILLS',
-    contactMessage: 'CONTACT MESSAGE', socialProfiles: 'SOCIAL PROFILES', stackLabel: 'Stack',
-  };
-  const finalLabels = { ...defaultLabels, ...labels };
-  const skills = content.skills.join(', ');
-  const certifications = content.certifications.map((cert) => `${cert.name} - ${cert.issuer} (${cert.year})`).join('\n');
-  const experience = content.experience.map((exp) => `${exp.title} (${exp.period})\n${exp.description}`).join('\n\n');
-  const projects = content.projects.map((proj) => `${proj.title}\n${proj.description}\n${finalLabels.stackLabel}: ${proj.stack}`).join('\n\n');
-  const projectsSectionHTML = projects
-    ? `<section><h2>${finalLabels.projects}</h2><div class="block">${projects}</div></section>`
-    : '';
-  return `<!DOCTYPE html><html><head><meta charset="UTF-8"/><title>${escapeHTML(content.name)} - CV ATS</title><style>html,body{margin:0;padding:0}body{font-family:'Courier New',monospace;white-space:pre-wrap;word-wrap:break-word;font-size:9.5px;line-height:1.22;color:#111;padding:8mm 9mm}h1,h2,p{margin:0}h1{font-size:16px;line-height:1.05;margin-bottom:2px}h2{font-size:10px;margin:8px 0 4px;text-transform:uppercase;letter-spacing:.04em}section{page-break-inside:avoid;margin-bottom:4px} .block{page-break-inside:avoid} .spacer{height:4px} .label{font-weight:700}</style></head><body><h1>${escapeHTML(content.name)}</h1><div class="block">${escapeHTML(content.role)} | ${escapeHTML(content.badge)}</div><div class="spacer"></div><section><h2>${finalLabels.contactInfo}</h2><div class="block"><span class="label">${finalLabels.location}:</span> ${escapeHTML(content.location)} | <span class="label">${finalLabels.email}:</span> ${escapeHTML(content.email)} | <span class="label">${finalLabels.phone}:</span> ${escapeHTML(content.phone)} | <span class="label">${finalLabels.languages}:</span> ${escapeHTML(content.languages)}</div></section><section><h2>${finalLabels.summary}</h2><div class="block">${escapeHTML(content.summary)}</div></section><section><h2>${finalLabels.about}</h2><div class="block">${escapeHTML(content.about)}</div></section><section><h2>${finalLabels.experience}</h2><div class="block">${experience}</div></section><section><h2>${finalLabels.certifications}</h2><div class="block">${certifications}</div></section>${projectsSectionHTML}<section><h2>${finalLabels.skills}</h2><div class="block">${skills}</div></section><section><h2>${finalLabels.contactMessage}</h2><div class="block">${escapeHTML(content.contactMessage)}</div></section><section><h2>${finalLabels.socialProfiles}</h2><div class="block">LinkedIn: ${content.social.linkedin || 'N/A'} | GitHub: ${content.social.github || 'N/A'} | Portfolio: ${content.social.portfolio || 'N/A'}</div></section></body></html>`;
-}
-
-// Genera una version ATS en texto plano para mejorar parseo en filtros automaticos.
-function generateATSCVText(content, labels = {}) {
-  const defaultLabels = {
-    summary: 'SUMMARY',
-    skills: 'SKILLS',
-    experience: 'EXPERIENCE',
-    certifications: 'CERTIFICATIONS',
-    projects: 'PROJECTS',
-    contactMessage: 'CONTACT MESSAGE',
-    socialProfiles: 'SOCIAL PROFILES',
-    location: 'Location',
-    email: 'Email',
-    phone: 'Phone',
-    languages: 'Languages',
-  };
-
-  const finalLabels = { ...defaultLabels, ...labels };
-  const keywordSet = new Set();
-  content.skills.forEach((skill) => keywordSet.add(String(skill || '').trim()));
-  content.projects.forEach((project) => {
-    String(project.stack || '')
-      .split(/[;,/]+/)
-      .map((part) => part.trim())
-      .filter(Boolean)
-      .forEach((part) => keywordSet.add(part));
-  });
-
-  const keywords = Array.from(keywordSet).filter(Boolean).join(', ');
-  const experienceText = content.experience
-    .map((item) => `- ${item.title} (${item.period})\n  ${item.description}`)
-    .join('\n\n');
-  const certificationsText = content.certifications.length
-    ? content.certifications.map((item) => `- ${item.name} - ${item.issuer} (${item.year})`).join('\n')
-    : '- N/A';
-  const projectsText = content.projects.length
-    ? content.projects.map((item) => `- ${item.title}\n  ${item.description}\n  Stack: ${item.stack}`).join('\n\n')
-    : '';
-
-  return [
-    content.name,
-    content.role,
-    '',
-    `${finalLabels.location}: ${content.location}`,
-    `${finalLabels.email}: ${content.email}`,
-    `${finalLabels.phone}: ${content.phone}`,
-    `${finalLabels.languages}: ${content.languages}`,
-    '',
-    finalLabels.summary,
-    content.summary,
-    '',
-    finalLabels.skills,
-    content.skills.join(', '),
-    '',
-    'KEYWORDS',
-    keywords || 'N/A',
-    '',
-    finalLabels.experience,
-    experienceText || '- N/A',
-    '',
-    finalLabels.certifications,
-    certificationsText,
-    '',
-    ...(projectsText ? [finalLabels.projects, projectsText, ''] : []),
-    finalLabels.contactMessage,
-    content.contactMessage,
-    '',
-    finalLabels.socialProfiles,
-    `LinkedIn: ${content.social.linkedin || 'N/A'}`,
-    `GitHub: ${content.social.github || 'N/A'}`,
-    `Portfolio: ${content.social.portfolio || 'N/A'}`,
-  ].join('\n');
-}
-
-// Genera HTML ATS-friendly limpio y lineal sin estructuras complejas
-function generateATSFriendlyHTML(content, labels = {}) {
-  const defaultLabels = {
-    summary: 'SUMMARY',
-    skills: 'SKILLS',
-    experience: 'EXPERIENCE',
-    certifications: 'CERTIFICATIONS',
-    projects: 'PROJECTS',
-    contactMessage: 'CONTACT MESSAGE',
-    socialProfiles: 'SOCIAL PROFILES',
-    location: 'Location',
-    email: 'Email',
-    phone: 'Phone',
-    languages: 'Languages',
-  };
-
-  const finalLabels = { ...defaultLabels, ...labels };
-  
-  // Construir secciones con formato simple y lineal
-  const sections = [];
-  
-  // Encabezado
-  sections.push(`<h1 style="margin:0 0 4px 0; font-size:18px; font-weight:bold;">${escapeHTML(content.name)}</h1>`);
-  sections.push(`<p style="margin:0 0 2px 0; font-size:12px;">${escapeHTML(content.role)}</p>`);
-  if (content.badge) {
-    sections.push(`<p style="margin:0 0 12px 0; font-size:10px;">${escapeHTML(content.badge)}</p>`);
-  } else {
-    sections.push(`<p style="margin:0 0 12px 0;"></p>`);
-  }
-
-  // Información de contacto
-  sections.push(`<p style="margin:0 0 2px 0; font-size:10px; font-weight:bold;">${finalLabels.contactInfo}</p>`);
-  sections.push(`<p style="margin:0 0 12px 0; font-size:10px;">
-    ${finalLabels.location}: ${escapeHTML(content.location)} | 
-    ${finalLabels.email}: ${escapeHTML(content.email)} | 
-    ${finalLabels.phone}: ${escapeHTML(content.phone)} | 
-    ${finalLabels.languages}: ${escapeHTML(content.languages)}
-  </p>`);
-
-  // Resumen
-  if (content.summary) {
-    sections.push(`<p style="margin:0 0 2px 0; font-size:10px; font-weight:bold;">${finalLabels.summary}</p>`);
-    sections.push(`<p style="margin:0 0 12px 0; font-size:10px;">${escapeHTML(content.summary)}</p>`);
-  }
-
-  // Acerca de
-  if (content.about) {
-    sections.push(`<p style="margin:0 0 2px 0; font-size:10px; font-weight:bold;">ABOUT</p>`);
-    sections.push(`<p style="margin:0 0 12px 0; font-size:10px;">${escapeHTML(content.about)}</p>`);
-  }
-
-  // Experiencia
-  if (content.experience && content.experience.length > 0) {
-    sections.push(`<p style="margin:0 0 2px 0; font-size:10px; font-weight:bold;">${finalLabels.experience}</p>`);
-    content.experience.forEach((item) => {
-      sections.push(`<p style="margin:0 0 1px 0; font-size:10px;"><strong>${escapeHTML(item.title)}</strong> (${escapeHTML(item.period)})</p>`);
-      sections.push(`<p style="margin:0 0 8px 10px; font-size:10px;">${escapeHTML(item.description)}</p>`);
-    });
-    sections.push(`<p style="margin:0 0 12px 0;"></p>`);
-  }
-
-  // Certificaciones
-  if (content.certifications && content.certifications.length > 0) {
-    sections.push(`<p style="margin:0 0 2px 0; font-size:10px; font-weight:bold;">${finalLabels.certifications}</p>`);
-    content.certifications.forEach((item) => {
-      const percentage = item.percentage && item.percentage < 100 ? ` - ${item.percentage}% complete` : '';
-      sections.push(`<p style="margin:0 0 2px 0; font-size:10px;">- ${escapeHTML(item.name)}</p>`);
-      sections.push(`<p style="margin:0 0 4px 10px; font-size:9px;">${escapeHTML(item.issuer)} (${escapeHTML(item.year)})${percentage}</p>`);
-    });
-    sections.push(`<p style="margin:0 0 12px 0;"></p>`);
-  }
-
-  // Proyectos
-  if (content.projects && content.projects.length > 0) {
-    sections.push(`<p style="margin:0 0 2px 0; font-size:10px; font-weight:bold;">${finalLabels.projects}</p>`);
-    content.projects.forEach((item) => {
-      sections.push(`<p style="margin:0 0 1px 0; font-size:10px;"><strong>${escapeHTML(item.title)}</strong></p>`);
-      sections.push(`<p style="margin:0 0 1px 0; font-size:10px;">${escapeHTML(item.description)}</p>`);
-      sections.push(`<p style="margin:0 0 8px 10px; font-size:10px;"><strong>Stack:</strong> ${escapeHTML(item.stack || '')}</p>`);
-    });
-    sections.push(`<p style="margin:0 0 12px 0;"></p>`);
-  }
-
-  // Habilidades
-  if (content.skills && content.skills.length > 0) {
-    sections.push(`<p style="margin:0 0 2px 0; font-size:10px; font-weight:bold;">${finalLabels.skills}</p>`);
-    sections.push(`<p style="margin:0 0 12px 0; font-size:10px;">${content.skills.join(', ')}</p>`);
-  }
-
-  // Palabras clave
-  const keywordSet = new Set();
-  content.skills.forEach((skill) => keywordSet.add(String(skill || '').trim()));
-  if (content.projects) {
-    content.projects.forEach((project) => {
-      String(project.stack || '')
-        .split(/[;,/]+/)
-        .map((part) => part.trim())
-        .filter(Boolean)
-        .forEach((part) => keywordSet.add(part));
-    });
-  }
-  const keywords = Array.from(keywordSet).filter(Boolean).join(', ');
-  if (keywords) {
-    sections.push(`<p style="margin:0 0 2px 0; font-size:10px; font-weight:bold;">KEYWORDS</p>`);
-    sections.push(`<p style="margin:0 0 12px 0; font-size:10px;">${escapeHTML(keywords)}</p>`);
-  }
-
-  // Mensaje de contacto
-  if (content.contactMessage) {
-    sections.push(`<p style="margin:0 0 2px 0; font-size:10px; font-weight:bold;">${finalLabels.contactMessage}</p>`);
-    sections.push(`<p style="margin:0 0 12px 0; font-size:10px;">${escapeHTML(content.contactMessage)}</p>`);
-  }
-
-  // Perfiles sociales
-  sections.push(`<p style="margin:0 0 2px 0; font-size:10px; font-weight:bold;">${finalLabels.socialProfiles}</p>`);
-  const socialLinks = [];
-  if (content.social.linkedin) socialLinks.push(`LinkedIn: ${content.social.linkedin}`);
-  if (content.social.github) socialLinks.push(`GitHub: ${content.social.github}`);
-  if (content.social.portfolio) socialLinks.push(`Portfolio: ${content.social.portfolio}`);
-  if (content.social.twitter) socialLinks.push(`Twitter: ${content.social.twitter}`);
-  sections.push(`<p style="margin:0 0 12px 0; font-size:10px;">
-    ${socialLinks.length > 0 ? socialLinks.join(' | ') : 'N/A'}
-  </p>`);
-
-  const html = `
-    <!DOCTYPE html>
-    <html>
-    <head>
-      <meta charset="UTF-8"/>
-      <title>${escapeHTML(content.name)} - CV ATS Friendly</title>
-      <style>
-        * { margin: 0; padding: 0; }
-        body {
-          font-family: 'Arial', 'Helvetica', sans-serif;
-          font-size: 10pt;
-          line-height: 1.4;
-          color: #000;
-          background: #fff;
-          padding: 20mm 15mm;
-        }
-        h1, p { margin: 0; font-weight: normal; }
-        h1 { font-size: 14pt; padding-bottom: 4px; }
-        strong { font-weight: bold; }
-      </style>
-    </head>
-    <body>
-      ${sections.join('')}
-    </body>
-    </html>
-  `;
-
-  return html;
-}
-
-async function downloadATSPDF(content, labels) {
-  const localeSuffix = currentLocale === 'en' ? 'EN' : 'ES';
-  const safeName = content.name.replace(/\s+/g, '_');
-  const filename = `${safeName}_CV_ATS_${localeSuffix}.pdf`;
-  
-  const html = generateATSFriendlyHTML(content, labels);
-  const element = document.createElement('div');
-  element.innerHTML = html;
-  refs.pdfContainer.appendChild(element);
-
-  try {
-    const opt = {
-      margin: [10, 10, 10, 10],
-      filename: filename,
-      image: { type: 'jpeg', quality: 0.98 },
-      html2canvas: { scale: 1.25, useCORS: true },
-      jsPDF: { orientation: 'portrait', unit: 'mm', format: 'a4' },
-      pagebreak: { mode: 'avoid', avoid: ['p'] },
-    };
-
-    await html2pdf().set(opt).from(element).save();
-  } catch (error) {
-    console.error('Error downloading ATS PDF:', error);
-    alert('Could not download ATS CV. Please try again.');
-  } finally {
-    refs.pdfContainer.removeChild(element);
-  }
-}
-
-function downloadATSText(content, labels) {
-  // Mantener para compatibilidad, pero usar downloadATSPDF
-  return downloadATSPDF(content, labels);
-}
-
-async function downloadCVPDF(format) {
-  const content = currentLocale !== 'es' ? translatedContent : cvContent;
-  const localeText = UI_TEXT[currentLocale] || UI_TEXT.es;
-  const pdfLabels = currentLocale === 'es' ? {aboutTitle:'Sobre mí',experienceTitle:'Experiencia',certificationsTitle:'Certificaciones',projectsTitle:'Proyectos',skillsTitle:'Habilidades',contactTitle:'Contacto',location:'Ubicación',email:'Email',phone:'Teléfono',languages:'Idiomas',stackLabel:'Stack',contactInfo:'CONTACT INFORMATION',summary:'SUMMARY',about:'ABOUT',experience:'EXPERIENCE',certifications:'CERTIFICATIONS',projects:'PROJECTS',skills:'SKILLS',contactMessage:'CONTACT MESSAGE',socialProfiles:'SOCIAL PROFILES'} : {aboutTitle:'About me',experienceTitle:'Experience',certificationsTitle:'Certifications',projectsTitle:'Projects',skillsTitle:'Skills',contactTitle:'Contact',location:'Location',email:'Email',phone:'Phone',languages:'Languages',stackLabel:'Stack',contactInfo:'CONTACT INFORMATION',summary:'SUMMARY',about:'ABOUT',experience:'EXPERIENCE',certifications:'CERTIFICATIONS',projects:'PROJECTS',skills:'SKILLS',contactMessage:'CONTACT MESSAGE',socialProfiles:'SOCIAL PROFILES'};
-  pdfLabels.atsScore = localeText.admin.atsScore;
-  pdfLabels.atsLevel = localeText.admin.atsLevel;
-  pdfLabels.atsMatched = localeText.admin.atsMatched;
-  pdfLabels.atsMissing = localeText.admin.atsMissing;
-  pdfLabels.atsSuggestions = localeText.admin.atsSuggestions;
-  if (format === 'ats') {
-    await downloadATSPDF(content, pdfLabels);
-    return;
-  }
-
-  const html = generateStyledCVHTML(content, pdfLabels);
-  
-  const element = document.createElement('div');
-  element.innerHTML = html;
-  refs.pdfContainer.appendChild(element);
-
-  try {
-    const localeSuffix = currentLocale === 'en' ? 'EN' : 'ES';
-    const filename = `${content.name.replace(/\s+/g, '_')}_CV_${localeSuffix}.pdf`;
-
-    const opt = {
-      margin: [6, 6, 6, 6],
-      filename: filename,
-      image: { type: 'jpeg', quality: 0.98 },
-      html2canvas: { scale: 1.6, useCORS: true },
-      jsPDF: { orientation: 'portrait', unit: 'mm', format: 'a4' },
-      pagebreak: { mode: ['css', 'legacy'], avoid: ['.avoid-break', '.section'] },
-    };
-
-    await html2pdf().set(opt).from(element).save();
-  } catch (error) {
-    console.error('Error downloading PDF:', error);
-    alert('Could not download CV. Please try again.');
-  } finally {
-    refs.pdfContainer.removeChild(element);
-  }
+function downloadCoverLetterPDF() {
+  return pdfApi.downloadCoverLetterPDF();
 }
 
 // Conecta listeners para botones de descarga de CV
 function bindDownloadActions() {
-  if (refs.downloadCVNormalBtn) {
-    refs.downloadCVNormalBtn.addEventListener('click', () => {
-      downloadCVPDF('normal');
-    });
-  }
-
-  if (refs.downloadCVATSBtn) {
-    refs.downloadCVATSBtn.addEventListener('click', () => {
-      downloadCVPDF('ats');
-    });
-  }
+  pdfApi.bind();
 }
 
-// Conecta listeners de UI para acciones administrativas y utilidades JSON.
-function bindAdminActions() {
-  admin.openBtn.addEventListener('click', async () => {
-    if (await isAuthenticated()) {
-      openAdminPanel();
-      return;
-    }
 
-    openAuthModal();
-  });
-
-  admin.closeBtn.addEventListener('click', () => {
-    closeAdminPanel();
-  });
-
-  admin.logoutBtn.addEventListener('click', () => {
-    void logoutAuth0();
-  });
-
-  admin.authCancel.addEventListener('click', () => {
-    closeAuthModal();
-  });
-
-  admin.authForm.addEventListener('submit', async (event) => {
-    event.preventDefault();
-    await loginAuth0();
-  });
-
-  admin.form.addEventListener('submit', (event) => {
-    event.preventDefault();
-    void saveSubmittedContent();
-  });
-
-  admin.resetBtn.addEventListener('click', () => {
-    void resetContent();
-  });
-
-  admin.downloadBtn.addEventListener('click', () => {
-    const blob = new Blob([JSON.stringify(cvContent, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'cv-content.json';
-    a.click();
-    URL.revokeObjectURL(url);
-  });
-
-  admin.uploadInput.addEventListener('change', async (event) => {
-    const file = event.target.files?.[0];
-    if (!file) {
-      return;
-    }
-
-    try {
-      const text = await file.text();
-      const parsed = JSON.parse(text);
-      cvContent = normalizeContent(parsed);
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(cvContent));
-      render(cvContent);
-      populateForm(cvContent);
-      alert('JSON cargado correctamente.');
-    } catch (error) {
-      alert('El archivo JSON no es valido.');
-    } finally {
-      admin.uploadInput.value = '';
-    }
-  });
-
-  if (atsPanelApi && typeof atsPanelApi.bind === 'function') {
-    atsPanelApi.bind();
-  } else {
-    refreshATSAnalysisPreview();
-  }
-}
 
 function getATSJobDescription() {
   return atsPanelApi.getJobDescription();
@@ -1172,55 +583,19 @@ function normalizeAtsText(text) {
   return atsNormalizeText(text);
 }
 
-// Guarda cambios del formulario y refresca UI/cache.
-async function saveSubmittedContent() {
-  const next = collectFormData();
-  if (!next) {
-    alert('Revisa el formato de Certificaciones, Experiencia y Proyectos. Usa: campo | campo | campo');
-    return;
-  }
 
-  try {
-    const saved = await saveContent(next);
-    cvContent = saved;
-    render(cvContent);
-    populateForm(cvContent);
-    alert('Contenido guardado en el CMS.');
-  } catch (error) {
-    alert(error.message || 'No se pudo guardar el contenido.');
-  }
-}
 
-// Restaura contenido por defecto y lo persiste remotamente.
-async function resetContent() {
-  try {
-    const saved = await saveContent(structuredClone(defaultContent));
-    cvContent = saved;
-    render(cvContent);
-    populateForm(cvContent);
-    localStorage.removeItem(STORAGE_KEY);
-    alert('Contenido restaurado y guardado.');
-  } catch (error) {
-    alert(error.message || 'No se pudo restaurar el contenido.');
-  }
-}
 
-// Persiste contenido en API protegida con token Auth0.
-async function saveContent(nextContent) {
-  const response = await fetch(API_ENDPOINT, {
-    method: 'PUT',
-    headers: await buildAuthHeaders(),
-    body: JSON.stringify(normalizeContent(nextContent)),
-  });
 
-  if (!response.ok) {
-    const errorData = await readErrorResponse(response);
-    throw new Error(errorData.error || 'No se pudo guardar el contenido.');
-  }
 
-  const saved = normalizeContent(await response.json());
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(saved));
-  return saved;
+
+
+
+
+
+// Consulta estado de sesion en Auth0.
+async function isAuthenticated() {
+  return authApi.isAuthenticated();
 }
 
 // Construye headers de autorizacion para endpoints protegidos.
@@ -1242,52 +617,6 @@ async function buildAuthHeaders() {
     'Content-Type': 'application/json',
     Authorization: `Bearer ${accessToken}`,
   };
-}
-
-// Intenta parsear error JSON del backend sin romper flujo.
-async function readErrorResponse(response) {
-  try {
-    return await response.json();
-  } catch (error) {
-    return { error: 'Respuesta invalida del servidor' };
-  }
-}
-
-// Control visual del panel admin.
-function openAdminPanel() {
-  admin.panel.classList.add('open');
-  admin.panel.setAttribute('aria-hidden', 'false');
-}
-
-function closeAdminPanel() {
-  admin.panel.classList.remove('open');
-  admin.panel.setAttribute('aria-hidden', 'true');
-}
-
-// Abre modal de auth y valida configuracion minima de Auth0.
-function openAuthModal() {
-  admin.authModal.classList.add('open');
-  admin.authModal.setAttribute('aria-hidden', 'false');
-  admin.authError.textContent = '';
-
-  if (!isAuthConfigured()) {
-    admin.authError.textContent =
-      'Auth0 no esta configurado. Edita AUTH0_CONFIG en script.js.';
-    return;
-  }
-
-  admin.authLoginBtn.focus();
-}
-
-// Cierra modal de auth.
-function closeAuthModal() {
-  admin.authModal.classList.remove('open');
-  admin.authModal.setAttribute('aria-hidden', 'true');
-}
-
-// Consulta estado de sesion en Auth0.
-async function isAuthenticated() {
-  return authApi.isAuthenticated();
 }
 
 // Crea cliente Auth0 solo si el SDK y la configuracion estan disponibles.
@@ -1317,41 +646,7 @@ async function logoutAuth0() {
 
 // Convierte el formulario admin a estructura de contenido normalizada.
 function collectFormData() {
-  const form = admin.form.elements;
-
-  const certifications = parsePipeLines(form.certifications.value, ['name', 'issuer', 'year', 'percentage']);
-  const experience = parsePipeLines(form.experience.value, ['period', 'title', 'description']);
-  const projects = parsePipeLines(form.projects.value, ['title', 'description', 'stack']);
-
-  if (!certifications || !experience || !projects) {
-    return null;
-  }
-
-  return {
-    name: form.name.value.trim(),
-    role: form.role.value.trim(),
-    badge: form.badge.value.trim(),
-    summary: form.summary.value.trim(),
-    about: form.about.value.trim(),
-    location: form.location.value.trim(),
-    email: form.email.value.trim(),
-    phone: form.phone.value.trim(),
-    languages: form.languages.value.trim(),
-    social: {
-      linkedin: form.linkedin.value.trim(),
-      github: form.github.value.trim(),
-      portfolio: form.portfolio.value.trim(),
-      twitter: form.twitter.value.trim(),
-    },
-    contactMessage: form.contactMessage.value.trim(),
-    skills: form.skills.value
-      .split(',')
-      .map((item) => item.trim())
-      .filter(Boolean),
-    certifications,
-    experience,
-    projects,
-  };
+  return contentStateApi.collectFormData();
 }
 
 // Crea ancla social segura hacia URL externa.

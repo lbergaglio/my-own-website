@@ -1,0 +1,37 @@
+/* ===================================
+   ESTILOS PRINCIPALES
+   Importa todos los módulos CSS
+   =================================== */
+
+/* 1. Variables y Reset */
+@import url('./variables-reset.css');
+
+/* 2. Layout y Contenedores */
+@import url('./layout.css');
+
+/* 3. Tipografía */
+@import url('./typography.css');
+
+/* 4. Componentes Interactivos */
+@import url('./components.css');
+
+/* 5. Cards y Tarjetas */
+@import url('./cards.css');
+
+/* 6. Formularios */
+@import url('./forms.css');
+
+/* 7. Hero Section */
+@import url('./hero.css');
+
+/* 8. Secciones de Contenido */
+@import url('./sections.css');
+
+/* 9. Modales y Paneles */
+@import url('./modals.css');
+
+/* 10. Animaciones */
+@import url('./animations.css');
+
+/* 11. Responsive Design */
+@import url('./responsive.css');

@@ -1,0 +1,38 @@
+/* ===================================
+   HERO SECTION
+   Sección introductoria principal
+   =================================== */
+
+/* Hero grid */
+.hero {
+  padding-top: 64px;
+  display: grid;
+  grid-template-columns: 1.6fr 1fr;
+  gap: 18px;
+  align-items: start;
+}
+
+.hero-panel {
+  position: relative;
+  width: min(100%, 430px);
+  justify-self: end;
+  background: linear-gradient(170deg, rgba(255, 255, 255, 0.94), rgba(248, 251, 255, 0.88));
+  overflow: hidden;
+  border-radius: 18px;
+  padding: 20px;
+  box-shadow: var(--shadow);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.hero-panel:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 20px 50px rgba(15, 39, 80, 0.18);
+}
+
+.hero-panel::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto;
+  height: 4px;
+  background: linear-gradient(90deg, var(--blue), var(--teal));
+}

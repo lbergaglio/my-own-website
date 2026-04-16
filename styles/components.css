@@ -1,0 +1,201 @@
+/* ===================================
+   COMPONENTES INTERACTIVOS
+   Botones, switches, enlaces
+   =================================== */
+
+/* Sistema de botones */
+.btn {
+  border: 1px solid transparent;
+  border-radius: 12px;
+  padding: 11px 16px;
+  text-decoration: none;
+  font-weight: 800;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 0.93rem;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.btn:hover {
+  transform: translateY(-1px);
+}
+
+.btn-primary {
+  background: linear-gradient(130deg, var(--blue), #257ee8);
+  color: #fff;
+  box-shadow: var(--shadow);
+}
+
+.btn-primary:hover {
+  box-shadow: 0 18px 50px rgba(15, 39, 80, 0.18);
+}
+
+.btn-ghost {
+  border-color: var(--line);
+  background: #fff;
+  color: var(--ink);
+}
+
+.btn-ghost:hover {
+  border-color: var(--blue);
+  background: #f8fbff;
+}
+
+.close-btn {
+  border: 1px solid var(--line);
+  background: #fff;
+  border-radius: 10px;
+  padding: 7px 12px;
+  cursor: pointer;
+  font-weight: 700;
+  transition: border-color 0.2s ease, background 0.2s ease;
+}
+
+.close-btn:hover {
+  border-color: var(--blue);
+  background: #f8fbff;
+}
+
+/* Selector de idiomas */
+.locale-switcher {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.7);
+  box-shadow: 0 8px 18px rgba(15, 39, 80, 0.06);
+}
+
+.locale-button {
+  border: 0;
+  background: transparent;
+  color: var(--ink-soft);
+  font: inherit;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  border-radius: 999px;
+  padding: 7px 11px;
+  cursor: pointer;
+  min-width: 42px;
+  transition: background-color 0.2s ease, color 0.2s ease, transform 0.2s ease;
+}
+
+.locale-button:hover {
+  color: var(--ink);
+  transform: translateY(-1px);
+}
+
+.locale-button.active,
+.locale-button[aria-pressed="true"] {
+  color: #fff;
+  background: linear-gradient(130deg, var(--blue), #257ee8);
+  box-shadow: var(--shadow);
+}
+
+/* Links sociales y de contacto */
+.social-link {
+  text-decoration: none;
+  color: var(--ink);
+  background: #ffffff;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 8px 12px;
+  font-size: 0.86rem;
+  font-weight: 800;
+  transition: transform 0.2s ease, border-color 0.2s ease, background 0.2s ease;
+  display: inline-flex;
+  align-items: center;
+}
+
+.social-link:hover {
+  transform: translateY(-1px);
+  border-color: var(--blue);
+  background: #f8fbff;
+}
+
+.social-links {
+  margin-top: 16px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.social-links-footer {
+  margin-top: 14px;
+}
+
+.mail-link {
+  text-decoration: none;
+  color: var(--blue);
+  font-size: 1.14rem;
+  font-weight: 800;
+  transition: color 0.2s ease;
+}
+
+.mail-link:hover {
+  text-decoration: underline;
+  color: #257ee8;
+}
+
+.fact-link {
+  color: var(--ink);
+  text-decoration: none;
+  overflow-wrap: anywhere;
+  transition: color 0.2s ease;
+}
+
+.fact-link:hover {
+  color: var(--blue);
+  text-decoration: underline;
+}
+
+/* Pills y etiquetas */
+.github-pill {
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 6px 10px;
+  background: #fff;
+  font-weight: 700;
+  display: inline-block;
+  transition: border-color 0.2s ease;
+}
+
+.github-pill:hover {
+  border-color: var(--blue);
+}
+
+/* Botonera de acciones */
+.hero-actions {
+  margin-top: 24px;
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.hero-downloads {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.admin-actions {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 9px;
+  margin-top: 6px;
+}
+
+.ats-helper-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.auth-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}

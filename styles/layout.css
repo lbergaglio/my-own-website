@@ -1,0 +1,73 @@
+/* ===================================
+   LAYOUT Y CONTENEDORES
+   Grid, flexbox, responsive utilities
+   =================================== */
+
+/* Contenedor central reutilizable */
+.wrap {
+  width: min(1100px, 92%);
+  margin: 0 auto;
+}
+
+/* Header superior */
+.topbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-top: 24px;
+}
+
+.topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+/* Navegación principal */
+.menu {
+  list-style: none;
+  display: flex;
+  gap: 1.1rem;
+  margin: 0;
+  padding: 0;
+}
+
+.menu a {
+  text-decoration: none;
+  color: var(--ink-soft);
+  font-weight: 700;
+  font-size: 0.96rem;
+  letter-spacing: 0.01em;
+}
+
+.menu a:hover {
+  color: var(--blue);
+}
+
+/* Secciones y grids de contenido */
+.section {
+  padding-top: 72px;
+}
+
+.section-head {
+  margin-bottom: 14px;
+}
+
+.experience-grid,
+.project-grid,
+.certification-grid {
+  display: grid;
+  gap: 12px;
+}
+
+.experience-grid {
+  grid-template-columns: repeat(2, 1fr);
+}
+
+.project-grid {
+  grid-template-columns: repeat(3, 1fr);
+}
+
+.certification-grid {
+  grid-template-columns: repeat(3, 1fr);
+}

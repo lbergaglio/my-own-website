@@ -1,0 +1,63 @@
+/* ===================================
+   CSS VARIABLES Y RESET
+   Tokens visuales y reset básico
+   =================================== */
+
+/* Tokens visuales globales */
+:root {
+  --bg: #f3f6fb;
+  --paper: rgba(255, 255, 255, 0.84);
+  --ink: #15202d;
+  --ink-soft: #516178;
+  --line: rgba(21, 32, 45, 0.12);
+  --blue: #1067d8;
+  --teal: #0d8d87;
+  --alert: #d14c45;
+  --shadow: 0 15px 40px rgba(15, 39, 80, 0.12);
+}
+
+/* Reset básico */
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+/* Base de página y fondo atmosférico */
+body {
+  margin: 0;
+  font-family: "Manrope", sans-serif;
+  color: var(--ink);
+  background:
+    radial-gradient(circle at 8% 4%, rgba(13, 141, 135, 0.2) 0%, transparent 36%),
+    radial-gradient(circle at 90% 2%, rgba(16, 103, 216, 0.2) 0%, transparent 32%),
+    linear-gradient(160deg, #f6f8fc 0%, #edf2fa 100%);
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* Blobs de fondo */
+.mesh {
+  position: fixed;
+  z-index: -1;
+  border-radius: 50%;
+  filter: blur(7px);
+}
+
+.mesh-a {
+  width: 300px;
+  height: 300px;
+  right: -80px;
+  top: -50px;
+  background: rgba(16, 103, 216, 0.18);
+}
+
+.mesh-b {
+  width: 280px;
+  height: 280px;
+  left: -100px;
+  bottom: 12%;
+  background: rgba(13, 141, 135, 0.2);
+}
