@@ -207,6 +207,7 @@ h1 small {
 .body-text {
   color: var(--ink-soft);
   line-height: 1.72;
+  white-space: pre-line;
 }
 
 .lead {

@@ -1,15 +1,6 @@
-import express from 'express';
-import dotenv from 'dotenv';
+import { readJsonBody } from './lib/http.js';
 
-// Cargar variables de entorno desde .env
-dotenv.config();
-
-const app = express();
-const PORT = process.env.PORT || 3000;
-
-// Middleware
-app.use(express.json());
-app.use(express.static('./'));
+const DEFAULT_MODEL = String(process.env.GEMINI_MODEL || 'gemini-2.5-flash').trim();
 
 function stripCodeFences(text) {
   const source = String(text || '').trim();
@@ -37,13 +28,14 @@ function pickCandidateText(payload) {
 
 async function callGemini(prompt, temperature = 0.2) {
   const apiKey = String(process.env.GEMINI_API_KEY || '').trim();
-  const model = String(process.env.GEMINI_MODEL || 'gemini-2.5-flash').trim();
-
   if (!apiKey) {
-    throw new Error('Missing GEMINI_API_KEY');
+    const error = new Error('Missing GEMINI_API_KEY');
+    error.statusCode = 500;
+    throw error;
   }
 
-  const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`;
+  const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(DEFAULT_MODEL)}:generateContent?key=${encodeURIComponent(apiKey)}`;
+
   const response = await fetch(endpoint, {
     method: 'POST',
     headers: {
@@ -65,16 +57,19 @@ async function callGemini(prompt, temperature = 0.2) {
 
   const payload = await response.json().catch(() => ({}));
   if (!response.ok) {
-    throw new Error(payload?.error?.message || 'Gemini API request failed');
+    const message = payload?.error?.message || 'Gemini API request failed';
+    const error = new Error(message);
+    error.statusCode = response.status;
+    throw error;
   }
 
-  const rawText = stripCodeFences(pickCandidateText(payload));
-  if (!rawText) {
+  const text = stripCodeFences(pickCandidateText(payload));
+  if (!text) {
     throw new Error('Gemini returned an empty response');
   }
 
   try {
-    return JSON.parse(rawText);
+    return JSON.parse(text);
   } catch (error) {
     throw new Error('Gemini response is not valid JSON');
   }
@@ -178,100 +173,23 @@ function normalizeAtsResponse(payload) {
   };
 }
 
-// API Routes
-app.get('/api/config', (req, res) => {
-  res.setHeader('Content-Type', 'application/javascript; charset=utf-8');
-  res.setHeader('Cache-Control', 'no-store');
-
-  const runtimeConfig = {
-    auth0Domain: String(process.env.AUTH0_DOMAIN || '').trim(),
-    auth0ClientId: String(process.env.AUTH0_CLIENT_ID || '').trim(),
-    auth0Audience: String(process.env.AUTH0_AUDIENCE || '').trim(),
-    auth0RedirectUri: String(process.env.AUTH0_REDIRECT_URI || `http://localhost:${PORT}`).trim(),
-    auth0Connection: String(process.env.AUTH0_CONNECTION || 'github').trim(),
-    githubUsername: String(process.env.GITHUB_USERNAME || 'lbergaglio').trim(),
-    githubStatsCacheMinutes: Number(process.env.GITHUB_STATS_CACHE_MINUTES || 30),
-  };
-
-  res.status(200).end(`window.__CV_CONFIG = ${JSON.stringify(runtimeConfig)};`);
-});
-
-// API content - para desarrollo local, devolver contenido default
-app.get('/api/content', (req, res) => {
+export default async function handler(req, res) {
   res.setHeader('Content-Type', 'application/json; charset=utf-8');
-  res.status(200).json({
-    name: 'Tu Nombre',
-    role: 'Desarrollador Web Frontend',
-    badge: 'Disponible para nuevas oportunidades',
-    summary: 'Construyo experiencias web de alto impacto, enfocadas en usabilidad, rendimiento y resultados de negocio.',
-    about: 'Perfil proactivo y orientado a resultados. Experiencia en interfaces modernas, colaboración con equipos producto y optimización continua de procesos digitales.',
-    location: 'Ciudad, País',
-    email: 'tunombre@email.com',
-    phone: '+54 9 11 0000 0000',
-    languages: 'Español nativo, Inglés intermedio',
-    social: {
-      linkedin: 'https://www.linkedin.com/in/luciano-bergaglio-a9001b172/',
-      github: 'https://github.com/lbergaglio',
-      portfolio: 'https://mi-portafolio.com',
-      twitter: 'https://twitter.com/tunombre'
-    },
-    contactMessage: 'Si te interesa mi perfil para una posición o proyecto, estaré encantado de conversar.',
-    skills: [
-      'HTML5',
-      'CSS3',
-      'JavaScript',
-      'TypeScript',
-      'React',
-      'Git',
-      'Responsive Design',
-      'UI Systems'
-    ],
-    certifications: [
-      {
-        name: 'Advanced React',
-        issuer: 'Platforma X',
-        year: '2024',
-        percentage: 100
-      }
-    ],
-    experience: [
-      {
-        period: '2024 - Actualidad',
-        title: 'Desarrollador Frontend - Empresa X',
-        description: 'Diseño e implementación de interfaces accesibles, mantenimiento de componentes reutilizables y mejora de performance.'
-      },
-      {
-        period: '2022 - 2024',
-        title: 'Desarrollador Web - Empresa Y',
-        description: 'Desarrollo de sitios corporativos y e-commerce con integraciones API, SEO técnico y mejoras de conversión.'
-      }
-    ],
-    projects: [
-      {
-        title: 'Dashboard Operativo',
-        description: 'Aplicación interna para seguimiento de métricas y visualización de objetivos en tiempo real.',
-        stack: 'TypeScript, API REST, Charts'
-      },
-      {
-        title: 'Landing de Conversión',
-        description: 'Sitio orientado a captación de leads con estrategia UX y tests de performance.',
-        stack: 'HTML, CSS, JavaScript'
-      },
-      {
-        title: 'Portal de Clientes',
-        description: 'Portal con autenticación y sección autogestión para reducir consultas manuales.',
-        stack: 'React, Node API'
-      }
-    ]
-  });
-});
 
-app.post('/api/gemini', async (req, res) => {
-  res.setHeader('Content-Type', 'application/json; charset=utf-8');
+  if (req.method === 'OPTIONS') {
+    res.setHeader('Allow', 'POST, OPTIONS');
+    return res.status(204).end();
+  }
+
+  if (req.method !== 'POST') {
+    res.setHeader('Allow', 'POST, OPTIONS');
+    return res.status(405).json({ error: 'Method not allowed' });
+  }
 
   try {
-    const task = String(req.body?.task || '').trim();
-    const input = req.body?.input || {};
+    const body = await readJsonBody(req);
+    const task = String(body?.task || '').trim();
+    const input = body?.input || {};
 
     if (!task) {
       return res.status(400).json({ error: 'Missing task' });
@@ -279,7 +197,8 @@ app.post('/api/gemini', async (req, res) => {
 
     if (task === 'translate_text') {
       const result = await callGemini(buildTranslatePrompt(input), 0.1);
-      return res.status(200).json({ translatedText: String(result?.translatedText || '').trim() });
+      const translatedText = String(result?.translatedText || '').trim();
+      return res.status(200).json({ translatedText });
     }
 
     if (task === 'translate_content') {
@@ -310,17 +229,7 @@ app.post('/api/gemini', async (req, res) => {
 
     return res.status(400).json({ error: 'Unsupported task' });
   } catch (error) {
-    return res.status(500).json({ error: error.message || 'Gemini request failed' });
+    const statusCode = error.statusCode || 500;
+    return res.status(statusCode).json({ error: error.message || 'Gemini request failed' });
   }
-});
-
-// Página principal
-app.get('/', (req, res) => {
-  res.sendFile('./index.html', { root: '.' });
-});
-
-// Iniciar servidor
-app.listen(PORT, () => {
-  console.log(`🚀 Servidor running en http://localhost:${PORT}`);
-  console.log(`📄 CV disponible en http://localhost:${PORT}`);
-});
+}

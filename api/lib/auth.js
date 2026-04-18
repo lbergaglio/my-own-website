@@ -77,7 +77,7 @@ function authorizeUser(user) {
   }
 }
 
-module.exports = {
+export {
   extractBearerToken,
   fetchAuth0User,
   authorizeUser,

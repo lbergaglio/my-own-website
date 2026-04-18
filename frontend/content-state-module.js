@@ -98,10 +98,30 @@ export function create(deps) {
   }
 
   async function readErrorResponse(response) {
+    const status = Number(response?.status || 0);
+
     try {
-      return await response.json();
+      const payload = await response.json();
+      if (payload && typeof payload.error === 'string') {
+        return payload;
+      }
+
+      if (payload && payload.error && typeof payload.error.message === 'string') {
+        return { error: payload.error.message };
+      }
+
+      return { error: `Error del servidor (${status || 'desconocido'})` };
     } catch (error) {
-      return { error: 'Respuesta invalida del servidor' };
+      try {
+        const text = String(await response.text()).trim();
+        if (text) {
+          return { error: `Error del servidor (${status || 'desconocido'}): ${text.slice(0, 180)}` };
+        }
+      } catch (innerError) {
+        // Ignore text parsing errors and return generic fallback.
+      }
+
+      return { error: `Respuesta invalida del servidor (${status || 'desconocido'})` };
     }
   }
 

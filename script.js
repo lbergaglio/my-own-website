@@ -12,6 +12,7 @@ import {
   normalizeText as atsNormalizeText,
   buildAnalysis as atsBuildAnalysis,
 } from './frontend/ats-engine.js';
+import { invokeGeminiTask } from './frontend/gemini-client.js';
 import { create as createAtsPanel } from './frontend/ats-panel.js';
 import { create as createRenderModule } from './frontend/render-module.js';
 import { create as createContentStateModule } from './frontend/content-state-module.js';
@@ -68,6 +69,8 @@ const UI_TEXT = {
       downloadCV: 'Descargar CV',
       downloadATS: 'Descargar ATS (TXT)',
       downloadCoverLetter: 'Descargar cover letter',
+      downloadCVDocx: 'Descargar CV DOCX',
+      downloadCoverLetterDocx: 'Descargar cover letter DOCX',
     },
     panel: {
       contactInfo: 'Informacion de contacto',
@@ -137,6 +140,8 @@ const UI_TEXT = {
       atsAnalyzeButton: 'Analizar match ATS',
       atsApplySummaryButton: 'Agregar keywords a skills',
       atsNoData: 'Pega una vacante para analizar keywords y score de match.',
+      atsLoading: 'Analizando con Gemini...',
+      atsError: 'No se pudo analizar ATS en este momento. Intenta nuevamente.',
       atsScore: 'Score estimado',
       atsLevel: 'Nivel',
       atsLevelLow: 'Bajo',
@@ -166,6 +171,8 @@ const UI_TEXT = {
       downloadCV: 'Download CV',
       downloadATS: 'Download ATS (TXT)',
       downloadCoverLetter: 'Download cover letter',
+      downloadCVDocx: 'Download CV DOCX',
+      downloadCoverLetterDocx: 'Download cover letter DOCX',
     },
     panel: {
       contactInfo: 'Contact information',
@@ -235,6 +242,8 @@ const UI_TEXT = {
       atsAnalyzeButton: 'Analyze ATS match',
       atsApplySummaryButton: 'Add keywords to skills',
       atsNoData: 'Paste a job post to analyze keywords and match score.',
+      atsLoading: 'Analyzing with Gemini...',
+      atsError: 'ATS analysis is unavailable right now. Please try again.',
       atsScore: 'Estimated score',
       atsLevel: 'Level',
       atsLevelLow: 'Low',
@@ -280,6 +289,8 @@ const refs = {
   downloadCVNormalBtn: document.getElementById('download-cv-normal'),
   downloadCVATSBtn: document.getElementById('download-cv-ats'),
   downloadCoverLetterBtn: document.getElementById('download-cover-letter'),
+  downloadCVDocxBtn: document.getElementById('download-cv-docx'),
+  downloadCoverLetterDocxBtn: document.getElementById('download-cover-letter-docx'),
   pdfContainer: document.getElementById('pdf-container'),
 };
 
@@ -381,6 +392,7 @@ const pdfApi = createPdfExportModule({
   getContent: () => cvContent,
   getTranslatedContent: () => translatedContent,
   translateContentForLocale: (content, locale) => i18nApi.translateContentForLocale(content, locale),
+  generateCoverLetterParagraphs: (content, locale, draft) => generateCoverLetterParagraphs(content, locale, draft),
   promptText: (message, defaultValue) => window.prompt(message, defaultValue),
   alertText: (message) => window.alert(message),
 });
@@ -567,16 +579,36 @@ function getATSJobDescription() {
 }
 
 function applyATSSuggestionsToSummary() {
-  atsPanelApi.applySuggestionsToSummary();
+  void atsPanelApi.applySuggestionsToSummary();
 }
 
 // Calcula score ATS estimado comparando keywords de la vacante con el contenido del CV.
-function buildATSAnalysis(jobDescription, content) {
+async function buildATSAnalysis(jobDescription, content) {
   return atsBuildAnalysis(jobDescription, content, currentLocale, UI_TEXT);
 }
 
 function refreshATSAnalysisPreview() {
-  atsPanelApi.refresh();
+  void atsPanelApi.refresh();
+}
+
+async function generateCoverLetterParagraphs(content, locale, draft) {
+  const result = await invokeGeminiTask('cover_letter_paragraphs', {
+    locale,
+    company: draft?.company || '',
+    role: draft?.role || '',
+    recipient: draft?.recipient || '',
+    content,
+  });
+
+  const paragraphs = Array.isArray(result?.paragraphs)
+    ? result.paragraphs.map((item) => String(item).trim()).filter(Boolean)
+    : [];
+
+  if (!paragraphs.length) {
+    throw new Error('Gemini did not return cover letter paragraphs');
+  }
+
+  return paragraphs.slice(0, 4);
 }
 
 function normalizeAtsText(text) {

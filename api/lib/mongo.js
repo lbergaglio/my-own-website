@@ -1,4 +1,4 @@
-const { MongoClient } = require('mongodb');
+import { MongoClient } from 'mongodb';
 
 let mongoClient = null;
 
@@ -32,6 +32,6 @@ async function getMongoCollection() {
   return db.collection('content');
 }
 
-module.exports = {
+export {
   getMongoCollection,
 };

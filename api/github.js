@@ -132,7 +132,7 @@ async function fetchProfile(username) {
   };
 }
 
-module.exports = async function handler(req, res) {
+export default async function handler(req, res) {
   res.setHeader('Content-Type', 'application/json; charset=utf-8');
   res.setHeader('Cache-Control', 's-maxage=300, stale-while-revalidate=3600');
 
@@ -154,4 +154,4 @@ module.exports = async function handler(req, res) {
     const statusCode = error.statusCode || 500;
     return res.status(statusCode).json({ error: error.message || 'Unable to load GitHub data' });
   }
-};
+}

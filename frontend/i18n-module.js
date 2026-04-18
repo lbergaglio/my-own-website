@@ -1,3 +1,5 @@
+import { invokeGeminiTask } from './gemini-client.js';
+
 export function create(deps) {
   const {
     refs,
@@ -151,6 +153,21 @@ export function create(deps) {
       return content;
     }
 
+    try {
+      const result = await invokeGeminiTask('translate_content', {
+        content,
+        sourceLocale: 'es',
+        targetLocale: locale,
+      });
+
+      const candidate = result?.translatedContent;
+      if (candidate && typeof candidate === 'object') {
+        return mergeTranslatedContent(content, candidate);
+      }
+    } catch (error) {
+      // Fallback to per-field translation when bulk translation is unavailable.
+    }
+
     const translated = structuredClone(content);
     translated.badge = await translateText(content.badge, locale);
     translated.role = await translateText(content.role, locale);
@@ -190,6 +207,52 @@ export function create(deps) {
     return translated;
   }
 
+  function mergeTranslatedContent(original, candidate) {
+    const safe = structuredClone(original);
+
+    safe.badge = sanitizeString(candidate?.badge, original.badge);
+    safe.role = sanitizeString(candidate?.role, original.role);
+    safe.summary = sanitizeString(candidate?.summary, original.summary);
+    safe.about = sanitizeString(candidate?.about, original.about);
+    safe.contactMessage = sanitizeString(candidate?.contactMessage, original.contactMessage);
+
+    safe.experience = Array.isArray(original.experience)
+      ? original.experience.map((item, index) => ({
+          period: sanitizeString(candidate?.experience?.[index]?.period, item.period),
+          title: sanitizeString(candidate?.experience?.[index]?.title, item.title),
+          description: sanitizeString(candidate?.experience?.[index]?.description, item.description),
+        }))
+      : [];
+
+    safe.certifications = Array.isArray(original.certifications)
+      ? original.certifications.map((item, index) => ({
+          name: sanitizeString(candidate?.certifications?.[index]?.name, item.name),
+          issuer: sanitizeString(candidate?.certifications?.[index]?.issuer, item.issuer),
+          year: item.year,
+          percentage: item.percentage,
+        }))
+      : [];
+
+    safe.projects = Array.isArray(original.projects)
+      ? original.projects.map((item, index) => ({
+          title: sanitizeString(candidate?.projects?.[index]?.title, item.title),
+          description: sanitizeString(candidate?.projects?.[index]?.description, item.description),
+          stack: sanitizeString(candidate?.projects?.[index]?.stack, item.stack),
+        }))
+      : [];
+
+    safe.skills = Array.isArray(original.skills)
+      ? original.skills.map((item, index) => sanitizeString(candidate?.skills?.[index], item))
+      : [];
+
+    return safe;
+  }
+
+  function sanitizeString(value, fallback) {
+    const text = String(value || '').trim();
+    return text || String(fallback || '');
+  }
+
   async function translateText(text, locale) {
     const sourceText = String(text || '').trim();
     if (!sourceText || locale === 'es') {
@@ -203,18 +266,13 @@ export function create(deps) {
     }
 
     try {
-      const response = await fetch(
-        `https://translate.googleapis.com/translate_a/single?client=gtx&sl=es&tl=${encodeURIComponent(locale)}&dt=t&q=${encodeURIComponent(sourceText)}`
-      );
+      const result = await invokeGeminiTask('translate_text', {
+        text: sourceText,
+        sourceLocale: 'es',
+        targetLocale: locale,
+      });
 
-      if (!response.ok) {
-        throw new Error('Translation request failed');
-      }
-
-      const data = await response.json();
-      const translated = Array.isArray(data)
-        ? data[0].map((segment) => segment[0]).join('')
-        : sourceText;
+      const translated = String(result?.translatedText || '').trim() || sourceText;
 
       writeTranslationCache(cacheKey, translated);
       return translated;

@@ -1,10 +1,16 @@
-const { defaultContent, normalizeContent } = require('../content-model');
-const { getMongoCollection } = require('./lib/mongo');
-const { extractBearerToken, fetchAuth0User, authorizeUser } = require('./lib/auth');
-const { readJsonBody } = require('./lib/http');
+import { getMongoCollection } from './lib/mongo.js';
+import { extractBearerToken, fetchAuth0User, authorizeUser } from './lib/auth.js';
+import { readJsonBody } from './lib/http.js';
+import '../content-model.js';
+
+const { defaultContent, normalizeContent } = globalThis.CV_CONTENT_MODEL || {};
+
+if (!defaultContent || !normalizeContent) {
+  throw new Error('content-model.js could not be loaded in api/content');
+}
 
 // Endpoint serverless para leer/escribir el contenido editable del CV.
-module.exports = async function handler(req, res) {
+export default async function handler(req, res) {
   res.setHeader('Content-Type', 'application/json; charset=utf-8');
 
   if (req.method === 'OPTIONS') {
@@ -55,5 +61,5 @@ module.exports = async function handler(req, res) {
     const statusCode = error.statusCode || 500;
     return res.status(statusCode).json({ error: error.message || 'Unable to save content' });
   }
-};
+}
 

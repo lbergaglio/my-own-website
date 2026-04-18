@@ -1,4 +1,4 @@
-module.exports = function handler(req, res) {
+export default function handler(req, res) {
   res.setHeader('Content-Type', 'application/javascript; charset=utf-8');
   res.setHeader('Cache-Control', 'no-store');
 
@@ -13,4 +13,4 @@ module.exports = function handler(req, res) {
   };
 
   res.status(200).end(`window.__CV_CONFIG = ${JSON.stringify(runtimeConfig)};`);
-};
+}

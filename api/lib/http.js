@@ -23,6 +23,6 @@ async function readJsonBody(req) {
   }
 }
 
-module.exports = {
+export {
   readJsonBody,
 };
